@@ -1,0 +1,26 @@
+version: '3.8'
+
+services:
+  dynamic-lora-vllm:
+    build: .
+    ports:
+      - "${PORT:-8000}:8000"
+    environment:
+      - PORT=${PORT:-8000}
+      - HOST=${HOST:-0.0.0.0}
+      - MODEL_ID=${MODEL_ID:-meta-llama/Llama-3.2-1B-Instruct}
+      - HF_TOKEN=${HF_TOKEN}
+      - CACHE_DIR=${CACHE_DIR:-/tmp/.cache/huggingface}
+      - MAX_LORAS=${MAX_LORAS:-10}
+      - MAX_LORA_RANK=${MAX_LORA_RANK:-16}
+      - MAX_CPU_LORAS=${MAX_CPU_LORAS:-5}
+    volumes:
+      - "${CACHE_DIR:-./cache}:/tmp/.cache/huggingface"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    restart: unless-stopped

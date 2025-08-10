@@ -1,0 +1,42 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Debug vLLM Server",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/server.py",
+            "console": "integratedTerminal",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}/src:${workspaceFolder}",
+                "VLLM_ALLOW_RUNTIME_LORA_UPDATING": "True",
+                "MODEL_ID": "meta-llama/Llama-3.2-1B-Instruct",
+                "PORT": "8000",
+                "HOST": "0.0.0.0"
+            },
+            "cwd": "${workspaceFolder}",
+            "python": "/opt/miniconda3/envs/vllm/bin/python"
+        },
+        {
+            "name": "Debug Test Client",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/test_client.py",
+            "console": "integratedTerminal",
+            "args": [
+                "--base-url", "http://localhost:8000"
+            ],
+            "cwd": "${workspaceFolder}",
+            "python": "/opt/miniconda3/envs/vllm/bin/python"
+        },
+        {
+            "name": "Current Python File",
+            "type": "python",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}",
+            "python": "/opt/miniconda3/envs/vllm/bin/python"
+        }
+    ]
+}
