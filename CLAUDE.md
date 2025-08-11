@@ -38,8 +38,9 @@ This project implements a vLLM-based LLM serving service that supports dynamical
 
 ### Environment Variables
 - `MODEL_ID`: Base model (default: "meta-llama/Llama-3.2-1B-Instruct")
-- `HF_TOKEN`: HuggingFace token for private models
-- `CACHE_DIR`: Model/adapter cache location (default: "/tmp/.cache/huggingface")
+- `API_KEY`: API key for server authentication (optional - leave empty for no auth)
+- `HF_TOKEN`: HuggingFace token for private model access (optional)
+- `CACHE_DIR`: Model/adapter cache location (default: ".cache/huggingface")
 - `MAX_LORAS`: Maximum concurrent LoRA adapters (default: 10)
 - `MAX_LORA_RANK`: Maximum LoRA rank (default: 16)
 - `MAX_CPU_LORAS`: CPU LoRA limit (default: 5)
@@ -137,3 +138,14 @@ docker-compose logs -f dynamic-lora-vllm
 - Authentication and rate limiting
 - Integration with model registries beyond HuggingFace
 - Streaming responses for better user experience
+
+## Important: Server Startup
+
+**ALWAYS use `./run.sh` to start the server**, not `python src/server.py` directly. The run script:
+- Loads environment variables from `.env` file
+- Sets proper defaults for all configuration
+- Creates necessary cache directories
+- Sets PYTHONPATH correctly
+- Provides better error handling and logging
+
+Direct python execution bypasses important initialization steps and environment setup.

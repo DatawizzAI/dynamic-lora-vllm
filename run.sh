@@ -17,7 +17,7 @@ fi
 export PORT=${PORT:-8000}
 export HOST=${HOST:-0.0.0.0}
 export MODEL_ID=${MODEL_ID:-"meta-llama/Llama-3.2-1B-Instruct"}
-export CACHE_DIR=${CACHE_DIR:-"/tmp/.cache/huggingface"}
+export CACHE_DIR=${CACHE_DIR:-"$(pwd)/.cache/huggingface"}
 export MAX_LORAS=${MAX_LORAS:-10}
 export MAX_LORA_RANK=${MAX_LORA_RANK:-16}
 export MAX_CPU_LORAS=${MAX_CPU_LORAS:-5}
@@ -34,6 +34,13 @@ echo "  Max CPU LoRAs: $MAX_CPU_LORAS"
 
 # Create cache directory if it doesn't exist
 mkdir -p "$CACHE_DIR"
+
+# Check API key configuration
+if [ -z "$API_KEY" ]; then
+    echo "Info: API_KEY not set. Server will run without authentication."
+else
+    echo "API key provided for server authentication."
+fi
 
 # Check if HF_TOKEN is provided (optional)
 if [ -z "$HF_TOKEN" ]; then

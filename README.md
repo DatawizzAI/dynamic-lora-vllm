@@ -21,7 +21,10 @@ A vLLM-based LLM serving service that supports dynamically loading LoRA adapters
 
 2. Edit `.env` with your configuration:
    ```bash
-   # Required: Set your Hugging Face token for private models
+   # Optional: Set API key for server authentication (leave empty for no auth)
+   API_KEY=your_secret_api_key_here
+   
+   # Optional: Set your Hugging Face token for private models
    HF_TOKEN=your_huggingface_token_here
    
    # Optional: Customize other settings
@@ -41,6 +44,7 @@ docker build -t dynamic-lora-vllm .
 
 docker run -d \
   -p 8000:8000 \
+  -e API_KEY=your_secret_api_key \
   -e HF_TOKEN=your_token_here \
   -e MODEL_ID=meta-llama/Llama-3.2-1B-Instruct \
   -v ./cache:/tmp/.cache/huggingface \
@@ -55,7 +59,8 @@ docker run -d \
 | `PORT` | `8000` | Port the server listens on |
 | `HOST` | `0.0.0.0` | Host the server listens on |
 | `MODEL_ID` | `meta-llama/Llama-3.2-1B-Instruct` | Base model to load |
-| `HF_TOKEN` | - | Hugging Face token for private models |
+| `API_KEY` | - | API key for server authentication (optional - leave empty for no auth) |
+| `HF_TOKEN` | - | Hugging Face token for private model access (optional) |
 | `CACHE_DIR` | `/tmp/.cache/huggingface` | Directory to cache models and adapters |
 | `MAX_LORAS` | `10` | Maximum number of LoRA adapters to load |
 | `MAX_LORA_RANK` | `16` | Maximum rank of LoRA adapters |
@@ -67,9 +72,22 @@ docker run -d \
 
 Once the service is running, you can make OpenAI-compatible requests:
 
+**Without Authentication (default):**
 ```bash
 curl -X POST http://localhost:8000/v1/completions \
   -H "Content-Type: application/json" \
+  -d '{
+    "model": "meta-llama/Llama-3.2-1B-Instruct",
+    "prompt": "Hello, how are you?",
+    "max_tokens": 100
+  }'
+```
+
+**With Authentication (if API_KEY is set):**
+```bash
+curl -X POST http://localhost:8000/v1/completions \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer your_secret_api_key" \
   -d '{
     "model": "meta-llama/Llama-3.2-1B-Instruct",
     "prompt": "Hello, how are you?",
@@ -102,6 +120,7 @@ The service will automatically:
 ```bash
 curl -X POST http://localhost:8000/v1/chat/completions \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer your_secret_api_key" \
   -d '{
     "model": "username/my-lora-adapter",
     "messages": [
@@ -109,6 +128,30 @@ curl -X POST http://localhost:8000/v1/chat/completions \
     ],
     "max_tokens": 100
   }'
+```
+
+### Using with OpenAI Python Client
+
+```python
+from openai import OpenAI
+
+# Without authentication
+client = OpenAI(
+    api_key="not-needed",  # Required by client but ignored by server
+    base_url="http://localhost:8000/v1"
+)
+
+# With authentication
+client = OpenAI(
+    api_key="your_secret_api_key",
+    base_url="http://localhost:8000/v1"
+)
+
+response = client.completions.create(
+    model="meta-llama/Llama-3.2-1B-Instruct",
+    prompt="Hello, how are you?",
+    max_tokens=100
+)
 ```
 
 ## Development
@@ -122,7 +165,8 @@ curl -X POST http://localhost:8000/v1/chat/completions \
 
 2. Set environment variables:
    ```bash
-   export HF_TOKEN=your_token_here
+   export API_KEY=your_secret_key  # Optional - for authentication
+   export HF_TOKEN=your_token_here  # Optional - for private models
    export MODEL_ID=meta-llama/Llama-3.2-1B-Instruct
    ```
 
