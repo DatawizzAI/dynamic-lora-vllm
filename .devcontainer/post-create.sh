@@ -3,6 +3,10 @@ set -e
 
 echo "🚀 Setting up Dynamic LoRA vLLM development environment..."
 
+# Install PyTorch with CUDA support first
+echo "🔥 Installing PyTorch with CUDA support..."
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
+
 # Install Python dependencies from requirements.txt
 echo "📦 Installing Python dependencies..."
 pip install -r requirements.txt

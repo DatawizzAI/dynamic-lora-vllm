@@ -1,91 +1,26 @@
 {
-  "name": "Dynamic LoRA vLLM Development",
-  "image": "mcr.microsoft.com/vscode/devcontainers/base:ubuntu",
-  "runArgs": [
-    "--gpus=all",
-    "--shm-size=2g"
-  ],
-  "hostRequirements": {
-    "gpu": "optional"
-  },
-  "features": {
-    "ghcr.io/devcontainers/features/nvidia-cuda:1": {},
-    "ghcr.io/devcontainers/features/python:1": {},
-    "ghcr.io/raucha/devcontainer-features/pytorch:latest": {},
-    "ghcr.io/devcontainers/features/common-utils:2": {
-      "installZsh": true,
-      "configureZshAsDefaultShell": true,
-      "installOhMyZsh": true,
-      "upgradePackages": true
-    },
-    "ghcr.io/devcontainers/features/git:1": {
-      "ppa": true,
-      "version": "latest"
-    },
-    "ghcr.io/devcontainers/features/node:1": {
-      "version": "20",
-      "nodeGypDependencies": true,
-      "installYarnUsingApt": true
-    }
-  },
-  "customizations": {
-    "vscode": {
-      "extensions": [
-        "ms-python.python",
-        "ms-python.pylint",
-        "ms-python.black-formatter",
-        "ms-python.isort",
-        "ms-python.flake8",
-        "ms-toolsai.jupyter",
-        "ms-vscode.vscode-json",
-        "ms-vscode.yaml",
-        "ms-azuretools.vscode-docker",
-        "GitHub.copilot",
-        "GitHub.copilot-chat",
-        "redhat.vscode-yaml",
-        "ms-vscode.makefile-tools"
-      ],
-      "settings": {
-        "python.defaultInterpreterPath": "/usr/local/bin/python",
-        "python.terminal.activateEnvironment": true,
-        "python.formatting.provider": "black",
-        "python.linting.enabled": true,
-        "python.linting.pylintEnabled": true,
-        "python.linting.flake8Enabled": true,
-        "editor.formatOnSave": true,
-        "editor.codeActionsOnSave": {
-          "source.organizeImports": "explicit"
-        },
-        "files.exclude": {
-          "**/__pycache__": true,
-          "**/.pytest_cache": true,
-          "**/*.pyc": true
-        },
-        "terminal.integrated.defaultProfile.linux": "zsh",
-        "terminal.integrated.profiles.linux": {
-          "zsh": {
-            "path": "/bin/zsh"
-          }
-        }
-      }
-    }
-  },
-  "containerEnv": {
-    "PYTHONPATH": "/workspace/src:/workspace",
-    "VLLM_ALLOW_RUNTIME_LORA_UPDATING": "True",
-    "CUDA_VISIBLE_DEVICES": "all"
-  },
-  "postCreateCommand": "bash .devcontainer/post-create.sh",
-  "forwardPorts": [8000],
-  "portsAttributes": {
-    "8000": {
-      "label": "vLLM API Server",
-      "onAutoForward": "notify"
-    }
-  },
-  "mounts": [
-    "source=${localWorkspaceFolder}/.cache,target=/tmp/.cache/huggingface,type=bind,consistency=cached"
-  ],
-  "workspaceFolder": "/workspace",
-  "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=cached"
+	"dockerFile": "Dockerfile",
+	"hostRequirements": {
+		"gpu": "optional"
+	},
+	"runArgs": [
+		"--gpus=all",
+		"--privileged"
+	],
+	"mounts": [
+		"source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=cached"
+	],
+	"workspaceFolder": "/workspace",
+	"features": {
+		"ghcr.io/devcontainers/features/nvidia-cuda:1": {},
+		"ghcr.io/devcontainers/features/python:1": {},
+		"ghcr.io/raucha/devcontainer-features/pytorch:latest": {},
+		"ghcr.io/devcontainers/features/node:1": {}
+	},
+	"updateContentCommand": "pip install --user -r requirements.txt --break-system-packages",
+	"build": {
+		"args": {
+			"PIP_BREAK_SYSTEM_PACKAGES": "1"
+		}
+	}
 }

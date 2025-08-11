@@ -7,8 +7,10 @@ echo "========================"
 
 # Load environment variables from .env if it exists
 if [ -f .env ]; then
-    echo "Loading environment variables from .env file..."
-    export $(cat .env | xargs)
+  echo "Loading environment variables from .env file..."
+  set -a  # automatically export all variables
+  source .env
+  set +a  # turn off automatic export
 fi
 
 # Set default values if not provided
