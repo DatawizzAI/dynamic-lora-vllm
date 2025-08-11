@@ -1,4 +1,4 @@
-FROM nvidia/cuda:12.1-devel-ubuntu22.04
+FROM nvidia/cuda:12.1.0-devel-ubuntu22.04
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
@@ -36,21 +36,26 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY src/ ./src/
 COPY *.md *.yml *.yaml ./
 
-# Set default environment variables
+# Set default environment variables (can be overridden at runtime)
 ENV PORT=8000
 ENV HOST=0.0.0.0
 ENV MODEL_ID="meta-llama/Llama-3.2-1B-Instruct"
-ENV CACHE_DIR="/tmp/.cache/huggingface"
+ENV CACHE_DIR="/app/.cache/huggingface"
 ENV MAX_LORAS=10
 ENV MAX_LORA_RANK=16
 ENV MAX_CPU_LORAS=5
 ENV PYTHONPATH="/app/src:$PYTHONPATH"
+ENV VLLM_ALLOW_RUNTIME_LORA_UPDATING=True
 
-# Create cache directory
-RUN mkdir -p /tmp/.cache/huggingface
+# Optional environment variables (empty by default)
+ENV API_KEY=""
+ENV HF_TOKEN=""
 
-# Expose the port
-EXPOSE 8000
+# Create cache directories
+RUN mkdir -p /app/.cache/huggingface /tmp/.cache/huggingface
+
+# Note: Port is configurable via PORT environment variable (default: 8000)
+# Use -p HOST_PORT:CONTAINER_PORT when running to map the correct port
 
 # Run the server
 CMD ["/opt/miniconda3/envs/vllm/bin/python", "src/server.py"]
