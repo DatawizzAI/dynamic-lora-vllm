@@ -1,8 +1,6 @@
 {
   "name": "Dynamic LoRA vLLM Development",
-  "build": {
-    "dockerfile": "Dockerfile"
-  },
+  "image": "mcr.microsoft.com/vscode/devcontainers/base:ubuntu",
   "runArgs": [
     "--gpus=all",
     "--shm-size=2g"
@@ -11,6 +9,9 @@
     "gpu": "optional"
   },
   "features": {
+    "ghcr.io/devcontainers/features/nvidia-cuda:1": {},
+    "ghcr.io/devcontainers/features/python:1": {},
+    "ghcr.io/raucha/devcontainer-features/pytorch:latest": {},
     "ghcr.io/devcontainers/features/common-utils:2": {
       "installZsh": true,
       "configureZshAsDefaultShell": true,
@@ -45,7 +46,7 @@
         "ms-vscode.makefile-tools"
       ],
       "settings": {
-        "python.defaultInterpreterPath": "/opt/miniconda3/envs/vllm/bin/python",
+        "python.defaultInterpreterPath": "/usr/local/bin/python",
         "python.terminal.activateEnvironment": true,
         "python.formatting.provider": "black",
         "python.linting.enabled": true,
@@ -74,11 +75,7 @@
     "VLLM_ALLOW_RUNTIME_LORA_UPDATING": "True",
     "CUDA_VISIBLE_DEVICES": "all"
   },
-  "remoteEnv": {
-    "PATH": "/opt/miniconda3/envs/vllm/bin:${containerEnv:PATH}"
-  },
   "postCreateCommand": "bash .devcontainer/post-create.sh",
-  "postStartCommand": "conda activate vllm",
   "forwardPorts": [8000],
   "portsAttributes": {
     "8000": {

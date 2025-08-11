@@ -3,11 +3,11 @@ set -e
 
 echo "🚀 Setting up Dynamic LoRA vLLM development environment..."
 
-# Activate conda environment
-source /opt/miniconda3/etc/profile.d/conda.sh
-conda activate vllm
+# Install Python dependencies from requirements.txt
+echo "📦 Installing Python dependencies..."
+pip install -r requirements.txt
 
-# Install any additional dependencies that might be needed
+# Install any additional development dependencies
 echo "📦 Installing additional development dependencies..."
 pip install --no-cache-dir \
     python-dotenv \
