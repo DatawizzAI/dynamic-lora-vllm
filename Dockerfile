@@ -20,8 +20,8 @@ RUN wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -
     rm miniconda.sh
 
 # Create conda environment with Python 3.11
+ENV CONDA_PLUGINS_AUTO_ACCEPT_TOS=true
 RUN conda create -n vllm python=3.11 -y
-SHELL ["/opt/miniconda3/bin/conda", "run", "-n", "vllm", "/bin/bash", "-c"]
 
 # Set working directory
 WORKDIR /app
@@ -29,8 +29,11 @@ WORKDIR /app
 # Copy requirements first for better caching
 COPY requirements.txt .
 
-# Install Python dependencies
-RUN pip install --no-cache-dir -r requirements.txt
+# Install Python dependencies in the conda environment with cleanup
+RUN /opt/miniconda3/envs/vllm/bin/pip install --no-cache-dir -r requirements.txt && \
+    conda clean -afy && \
+    rm -rf /opt/miniconda3/pkgs/* && \
+    rm -rf /tmp/*
 
 # Copy application code
 COPY src/ ./src/
