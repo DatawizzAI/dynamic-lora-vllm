@@ -1,27 +1,8 @@
-FROM nvidia/cuda:12.1.0-devel-ubuntu22.04
+FROM nvcr.io/nvidia/pytorch:24.10-py3
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
 ENV DEBIAN_FRONTEND=noninteractive
-ENV PATH="/opt/miniconda3/bin:$PATH"
-
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
-    curl \
-    git \
-    wget \
-    build-essential \
-    python3-dev \
-    && rm -rf /var/lib/apt/lists/*
-
-# Install Miniconda
-RUN wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O miniconda.sh && \
-    bash miniconda.sh -b -p /opt/miniconda3 && \
-    rm miniconda.sh
-
-# Create conda environment with Python 3.11
-ENV CONDA_PLUGINS_AUTO_ACCEPT_TOS=true
-RUN conda create -n vllm python=3.11 -y
 
 # Set working directory
 WORKDIR /app
@@ -29,11 +10,8 @@ WORKDIR /app
 # Copy requirements first for better caching
 COPY requirements.txt .
 
-# Install Python dependencies in the conda environment with cleanup
-RUN /opt/miniconda3/envs/vllm/bin/pip install --no-cache-dir -r requirements.txt && \
-    conda clean -afy && \
-    rm -rf /opt/miniconda3/pkgs/* && \
-    rm -rf /tmp/*
+# Install Python dependencies 
+RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application code
 COPY src/ ./src/
@@ -61,4 +39,4 @@ RUN mkdir -p /app/.cache/huggingface /tmp/.cache/huggingface
 # Use -p HOST_PORT:CONTAINER_PORT when running to map the correct port
 
 # Run the server
-CMD ["/opt/miniconda3/envs/vllm/bin/python", "src/server.py"]
+CMD ["python", "src/server.py"]
