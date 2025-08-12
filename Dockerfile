@@ -1,4 +1,4 @@
-FROM nvcr.io/nvidia/pytorch:24.10-py3
+FROM nvcr.io/nvidia/pytorch:24.03-py3
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
@@ -10,8 +10,9 @@ WORKDIR /app
 # Copy requirements first for better caching
 COPY requirements.txt .
 
-# Install Python dependencies 
-RUN pip install --no-cache-dir -r requirements.txt
+# Install Python dependencies with NumPy compatibility fix
+RUN pip install --no-cache-dir "numpy<2.0,>=1.24.0" && \
+    pip install --no-cache-dir -r requirements.txt
 
 # Copy application code
 COPY src/ ./src/
