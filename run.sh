@@ -15,6 +15,7 @@ fi
 
 # Set default values if not provided
 export PORT=${PORT:-8000}
+export PORT_HEALTH=${PORT_HEALTH:-8001}
 export HOST=${HOST:-0.0.0.0}
 export MODEL_ID=${MODEL_ID:-"meta-llama/Llama-3.2-1B-Instruct"}
 export CACHE_DIR=${CACHE_DIR:-"$(pwd)/.cache/huggingface"}
@@ -27,6 +28,7 @@ echo "Configuration:"
 echo "  Model: $MODEL_ID"
 echo "  Host: $HOST"
 echo "  Port: $PORT"
+echo "  Health Port: $PORT_HEALTH"
 echo "  Cache Directory: $CACHE_DIR"
 echo "  Max LoRAs: $MAX_LORAS"
 echo "  Max LoRA Rank: $MAX_LORA_RANK"
