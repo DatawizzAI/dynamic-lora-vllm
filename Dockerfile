@@ -1,4 +1,4 @@
-FROM nvcr.io/nvidia/pytorch:25.06-py3
+FROM nvcr.io/nvidia/pytorch:24.10-py3
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
