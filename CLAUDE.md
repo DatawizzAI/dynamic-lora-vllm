@@ -176,14 +176,20 @@ The repository includes automated Docker image building with GitHub Actions:
 - Manually trigger builds for custom models via GitHub UI
 - Options:
   - **Custom Model ID**: Any HuggingFace model ID
+  - **Custom Tag**: Custom tag suffix (e.g., "my-model" creates "my-model-latest")
   - **HF Token Required**: Toggle for private models
-- Tagged as `custom-latest`, `custom-YYYYMMDD`
+- Tagged as `{custom-tag}-latest`, `{custom-tag}-YYYYMMDD`
+- If no custom tag specified, defaults to `custom-latest`, `custom-YYYYMMDD`
 
 ### Usage Examples
 ```bash
 # Pull pre-built images from GitHub Container Registry
 docker pull ghcr.io/your-org/dynamic-lora-vllm:dialogpt-small-latest
 docker pull ghcr.io/your-org/dynamic-lora-vllm:llama-3.2-1b-20240115
+
+# Pull custom-tagged images
+docker pull ghcr.io/your-org/dynamic-lora-vllm:my-model-latest
+docker pull ghcr.io/your-org/dynamic-lora-vllm:custom-20240115
 
 # Run pre-built image
 docker run --gpus all -p 8000:8000 ghcr.io/your-org/dynamic-lora-vllm:dialogpt-small-latest

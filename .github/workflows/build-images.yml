@@ -9,6 +9,11 @@ on:
         description: 'Custom model ID to build (optional)'
         required: false
         type: string
+      custom_tag:
+        description: 'Custom tag suffix (e.g., "my-model" creates "my-model-latest")'
+        required: false
+        type: string
+        default: 'custom'
       hf_token_required:
         description: 'Does this model require HF token?'
         required: false
@@ -47,7 +52,11 @@ jobs:
         id: custom
         run: |
           if [ -n "${{ inputs.custom_model }}" ]; then
-            CUSTOM_MODEL='{"model_id":"${{ inputs.custom_model }}","requires_token":${{ inputs.hf_token_required }},"tag_suffix":"custom"}'
+            TAG_SUFFIX="${{ inputs.custom_tag }}"
+            if [ -z "$TAG_SUFFIX" ]; then
+              TAG_SUFFIX="custom"
+            fi
+            CUSTOM_MODEL='{"model_id":"${{ inputs.custom_model }}","requires_token":${{ inputs.hf_token_required }},"tag_suffix":"'$TAG_SUFFIX'"}'
             echo "model=${CUSTOM_MODEL}" >> $GITHUB_OUTPUT
           else
             echo "model=" >> $GITHUB_OUTPUT
