@@ -131,6 +131,14 @@ def main():
     max_lora_rank = get_env_var("MAX_LORA_RANK", "16", int)
     max_cpu_loras = get_env_var("MAX_CPU_LORAS", "5", int)
     api_key = get_env_var("API_KEY")
+    cache_dir = get_env_var("CACHE_DIR", ".cache/huggingface")
+    
+    # Check if model is pre-downloaded
+    model_cache_path = os.path.join(cache_dir, f"models--{model_id.replace('/', '--')}")
+    if os.path.exists(model_cache_path):
+        print(f"Using pre-downloaded model from cache: {model_cache_path}")
+    else:
+        print(f"Model will be downloaded at runtime to: {cache_dir}")
     
     print(f"Starting health server on {host}:{health_port}")
     print(f"Starting vLLM server on {host}:{port} with model: {model_id}")

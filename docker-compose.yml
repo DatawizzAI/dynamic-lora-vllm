@@ -2,7 +2,12 @@ version: '3.8'
 
 services:
   dynamic-lora-vllm:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        HF_TOKEN: ${BUILD_HF_TOKEN:-}
+        MODEL_ID: ${BUILD_MODEL_ID:-}
     ports:
       - "${PORT:-8000}:8000"
     environment:

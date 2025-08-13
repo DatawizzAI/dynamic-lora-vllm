@@ -46,6 +46,30 @@ This project implements a vLLM-based LLM serving service that supports dynamical
 - `MAX_CPU_LORAS`: CPU LoRA limit (default: 5)
 - `PORT`/`HOST`: Server configuration
 
+### Build Arguments (Docker)
+- `BUILD_MODEL_ID`: Model to pre-download during Docker image build (optional)
+- `BUILD_HF_TOKEN`: HuggingFace token for authentication during build (optional)
+
+### Model Pre-download (Optional)
+The Docker image can be built with a model pre-downloaded and baked into the image:
+
+1. **Benefits**: Faster startup time, no runtime download required, works in air-gapped environments
+2. **Usage**: Set `BUILD_MODEL_ID` build argument to the HuggingFace model ID
+3. **Authentication**: Set `BUILD_HF_TOKEN` for private models during build
+4. **Detection**: Server logs will show "Using pre-downloaded model from cache" on startup
+
+**Build Examples**:
+```bash
+# Build with public model pre-download
+docker build --build-arg BUILD_MODEL_ID="microsoft/DialoGPT-small" -t my-vllm-server .
+
+# Build with private model (requires HF token)
+docker build --build-arg BUILD_MODEL_ID="meta-llama/Llama-2-7b-hf" --build-arg BUILD_HF_TOKEN="hf_xxx" -t my-vllm-server .
+
+# Docker Compose (set BUILD_MODEL_ID and BUILD_HF_TOKEN in .env file)
+docker-compose build
+```
+
 ### API Usage
 The service maintains full OpenAI API compatibility:
 - Use base model ID in `model` field for base model inference
@@ -92,6 +116,9 @@ python test_client.py --base-url http://localhost:8000
 # Docker deployment
 docker-compose up -d
 
+# Build with model pre-download (set BUILD_MODEL_ID in .env)
+docker-compose build
+
 # Check logs
 docker-compose logs -f dynamic-lora-vllm
 ```
@@ -131,6 +158,45 @@ docker-compose logs -f dynamic-lora-vllm
 - **Download Failures**: Check `HF_TOKEN` and network connectivity
 - **Adapter Loading Errors**: Verify LoRA compatibility with base model
 - **Container Issues**: Ensure NVIDIA Container Toolkit is installed
+
+## GitHub Actions - Automated Image Builds
+
+The repository includes automated Docker image building with GitHub Actions:
+
+### Automatic Builds (Push to Main)
+- Triggers on every push to `main` branch
+- Builds images for predefined models:
+  - `microsoft/DialoGPT-small` → tagged as `dialogpt-small-latest`, `dialogpt-small-YYYYMMDD`
+  - `meta-llama/Llama-3.2-1B-Instruct` → tagged as `llama-3.2-1b-latest`, `llama-3.2-1b-YYYYMMDD`  
+  - `google/flan-t5-small` → tagged as `flan-t5-small-latest`, `flan-t5-small-YYYYMMDD`
+- Each model builds as a separate job for parallel execution
+- Images pushed to GitHub Container Registry (`ghcr.io`)
+
+### Manual Builds (Workflow Dispatch)
+- Manually trigger builds for custom models via GitHub UI
+- Options:
+  - **Custom Model ID**: Any HuggingFace model ID
+  - **HF Token Required**: Toggle for private models
+- Tagged as `custom-latest`, `custom-YYYYMMDD`
+
+### Usage Examples
+```bash
+# Pull pre-built images from GitHub Container Registry
+docker pull ghcr.io/your-org/dynamic-lora-vllm:dialogpt-small-latest
+docker pull ghcr.io/your-org/dynamic-lora-vllm:llama-3.2-1b-20240115
+
+# Run pre-built image
+docker run --gpus all -p 8000:8000 ghcr.io/your-org/dynamic-lora-vllm:dialogpt-small-latest
+```
+
+### Configuration Requirements
+1. **Repository Secrets**:
+   - `HF_TOKEN`: HuggingFace token for private model access (optional)
+2. **Runner Requirements**:
+   - Self-hosted runner named `GPU_Runner` with NVIDIA GPU support
+   - Docker with NVIDIA Container Toolkit installed
+3. **Permissions**:
+   - Workflow has `packages: write` permission for pushing to registry
 
 ## Future Enhancements
 - Support for multiple base models simultaneously

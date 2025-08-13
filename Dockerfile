@@ -1,5 +1,9 @@
 FROM nvcr.io/nvidia/pytorch:24.10-py3
 
+# Build arguments for optional model pre-download and HF authentication
+ARG HF_TOKEN=""
+ARG MODEL_ID=""
+
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
 ENV DEBIAN_FRONTEND=noninteractive
@@ -14,6 +18,26 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir "numpy<2.0,>=1.24.0" && \
     pip install --no-cache-dir -r requirements.txt
 
+# Pre-download model if MODEL_ID is provided
+RUN if [ -n "$MODEL_ID" ] && [ "$MODEL_ID" != "" ]; then \
+        echo "Pre-downloading model: $MODEL_ID"; \
+        mkdir -p /app/.cache/huggingface; \
+        if [ -n "$HF_TOKEN" ] && [ "$HF_TOKEN" != "" ]; then \
+            export HUGGING_FACE_HUB_TOKEN="$HF_TOKEN"; \
+        fi; \
+        python -c "import os; from huggingface_hub import snapshot_download; \
+                   cache_dir = '/app/.cache/huggingface'; \
+                   token = os.environ.get('HUGGING_FACE_HUB_TOKEN', None); \
+                   print(f'Downloading {os.environ.get(\"MODEL_ID\")} to {cache_dir}'); \
+                   snapshot_download(repo_id=os.environ.get('MODEL_ID'), \
+                                   cache_dir=cache_dir, \
+                                   token=token, \
+                                   ignore_patterns=['*.bin'])" && \
+        echo "Model pre-download completed"; \
+    else \
+        echo "No MODEL_ID provided, skipping model pre-download"; \
+    fi
+
 # Copy application code
 COPY src/ ./src/
 COPY *.md *.yml *.yaml ./
@@ -21,7 +45,7 @@ COPY *.md *.yml *.yaml ./
 # Set default environment variables (can be overridden at runtime)
 ENV PORT=8000
 ENV HOST=0.0.0.0
-ENV MODEL_ID="meta-llama/Llama-3.2-1B-Instruct"
+ENV MODEL_ID=${MODEL_ID:-"meta-llama/Llama-3.2-1B-Instruct"}
 ENV CACHE_DIR="/app/.cache/huggingface"
 ENV MAX_LORAS=10
 ENV MAX_LORA_RANK=16
@@ -31,7 +55,7 @@ ENV VLLM_ALLOW_RUNTIME_LORA_UPDATING=True
 
 # Optional environment variables (empty by default)
 ENV API_KEY=""
-ENV HF_TOKEN=""
+ENV HF_TOKEN=${HF_TOKEN:-""}
 
 # Create cache directories
 RUN mkdir -p /app/.cache/huggingface /tmp/.cache/huggingface
