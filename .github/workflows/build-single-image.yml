@@ -69,8 +69,8 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
-            BUILD_MODEL_ID=${{ inputs.model_id }}
-            BUILD_HF_TOKEN=${{ inputs.requires_token && secrets.hf_token || '' }}
+            MODEL_ID=${{ inputs.model_id }}
+            HF_TOKEN=${{ inputs.requires_token && secrets.hf_token || '' }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
           platforms: linux/amd64
