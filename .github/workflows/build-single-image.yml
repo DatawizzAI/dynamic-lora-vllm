@@ -31,6 +31,9 @@ env:
 jobs:
   build:
     runs-on: GPU_Runner
+    permissions:
+      contents: read
+      packages: write
     
     steps:
       - name: Checkout repository
