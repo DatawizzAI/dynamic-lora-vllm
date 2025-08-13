@@ -15,6 +15,10 @@ on:
         type: boolean
         default: false
 
+permissions:
+  contents: read
+  packages: write
+
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
@@ -72,6 +76,7 @@ jobs:
       matrix:
         model: ${{ fromJson(needs.setup.outputs.models) }}
       fail-fast: false
+    permissions: inherit
     uses: ./.github/workflows/build-single-image.yml
     with:
       model_id: ${{ matrix.model.model_id }}
@@ -85,6 +90,7 @@ jobs:
   build-custom:
     if: github.event_name == 'workflow_dispatch' && inputs.custom_model != ''
     needs: setup
+    permissions: inherit
     uses: ./.github/workflows/build-single-image.yml
     with:
       model_id: ${{ fromJson(needs.setup.outputs.custom_model).model_id }}
