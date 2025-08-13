@@ -40,7 +40,7 @@ jobs:
         id: models
         run: |
           # Define your predefined models here
-          MODELS='[{"model_id":"meta-llama/Llama-3.2-1B-Instruct","requires_token":true,"tag_suffix":"llama-3.2-1b"},{"model_id":"Qwen/Qwen2.5-3B","requires_token":false,"tag_suffix":"qwen2.5-3b"}]'
+          MODELS='[{"model_id":"meta-llama/Llama-3.2-1B-Instruct","requires_token":true,"tag_suffix":"llama-3.2-1b"},{"model_id":"Qwen/Qwen3-4B","requires_token":false,"tag_suffix":"qwen3-4b"}]'
           echo "models=${MODELS}" >> $GITHUB_OUTPUT
       
       - name: Set custom model
