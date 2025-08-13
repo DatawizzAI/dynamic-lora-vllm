@@ -30,7 +30,7 @@ env:
 
 jobs:
   build:
-    runs-on: GPU_Runner
+    runs-on: Ubuntu-150gb
     permissions:
       contents: read
       packages: write
