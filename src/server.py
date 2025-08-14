@@ -133,6 +133,10 @@ def main():
     api_key = get_env_var("API_KEY")
     cache_dir = get_env_var("CACHE_DIR", ".cache/huggingface")
     
+    # Ensure HuggingFace uses the correct cache directory
+    os.environ["HF_HOME"] = cache_dir
+    os.environ["TRANSFORMERS_CACHE"] = cache_dir
+    
     # Check if model is pre-downloaded
     model_cache_path = os.path.join(cache_dir, f"models--{model_id.replace('/', '--')}")
     if os.path.exists(model_cache_path):
@@ -172,7 +176,8 @@ def main():
             "--max-lora-rank", str(max_lora_rank),
             "--max-cpu-loras", str(max_cpu_loras),
             "--trust-remote-code",
-            "--gpu-memory-utilization", "0.8"
+            "--gpu-memory-utilization", "0.8",
+            "--download-dir", cache_dir
         ]
         
         if api_key:

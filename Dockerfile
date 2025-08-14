@@ -18,7 +18,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir "numpy<2.0,>=1.24.0" && \
     pip install --no-cache-dir -r requirements.txt
 
-# Pre-download model if MODEL_ID is provided
+# Pre-download model if MODEL_ID is provided as build arg
 RUN if [ -n "$MODEL_ID" ] && [ "$MODEL_ID" != "" ]; then \
         echo "Pre-downloading model: $MODEL_ID"; \
         mkdir -p /app/.cache/huggingface; \
@@ -28,14 +28,15 @@ RUN if [ -n "$MODEL_ID" ] && [ "$MODEL_ID" != "" ]; then \
         python -c "import os; from huggingface_hub import snapshot_download; \
                    cache_dir = '/app/.cache/huggingface'; \
                    token = os.environ.get('HUGGING_FACE_HUB_TOKEN', None); \
-                   print(f'Downloading {os.environ.get(\"MODEL_ID\")} to {cache_dir}'); \
-                   snapshot_download(repo_id=os.environ.get('MODEL_ID'), \
+                   model_id = '$MODEL_ID'; \
+                   print(f'Downloading {model_id} to {cache_dir}'); \
+                   snapshot_download(repo_id=model_id, \
                                    cache_dir=cache_dir, \
                                    token=token, \
                                    ignore_patterns=['*.bin'])" && \
         echo "Model pre-download completed"; \
     else \
-        echo "No MODEL_ID provided, skipping model pre-download"; \
+        echo "No MODEL_ID build arg provided, skipping model pre-download"; \
     fi
 
 # Copy application code
@@ -47,6 +48,7 @@ ENV PORT=8000
 ENV HOST=0.0.0.0
 ENV MODEL_ID=${MODEL_ID:-"meta-llama/Llama-3.2-1B-Instruct"}
 ENV CACHE_DIR="/app/.cache/huggingface"
+ENV HF_HOME="/app/.cache/huggingface"
 ENV MAX_LORAS=10
 ENV MAX_LORA_RANK=16
 ENV MAX_CPU_LORAS=5
