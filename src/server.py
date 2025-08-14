@@ -61,11 +61,16 @@ def register_custom_lora_resolver():
     """Register our custom HuggingFace LoRA resolver."""
     cache_dir = get_env_var("CACHE_DIR", ".cache/huggingface")
     hf_token = get_env_var("HF_TOKEN")
+    copy_chat_template = get_env_var("COPY_CHAT_TEMPLATE", "true", bool)
     
     # Register HuggingFace LoRA resolver
-    hf_resolver = HuggingFaceLoRAResolver(cache_dir=cache_dir, hf_token=hf_token)
+    hf_resolver = HuggingFaceLoRAResolver(
+        cache_dir=cache_dir, 
+        hf_token=hf_token, 
+        copy_chat_template=copy_chat_template
+    )
     LoRAResolverRegistry.register_resolver("hf_resolver", hf_resolver)
-    print("Registered HuggingFace LoRA resolver")
+    print(f"Registered HuggingFace LoRA resolver (copy_chat_template={copy_chat_template})")
 
 
 async def monitor_vllm_health(host: str, port: int):

@@ -65,6 +65,7 @@ docker run -d \
 | `MAX_LORAS` | `10` | Maximum number of LoRA adapters to load |
 | `MAX_LORA_RANK` | `16` | Maximum rank of LoRA adapters |
 | `MAX_CPU_LORAS` | `5` | Maximum LoRA adapters on CPU |
+| `COPY_CHAT_TEMPLATE` | `true` | Copy chat template from base model to LoRA adapters that lack one |
 
 ## Usage
 
@@ -111,9 +112,10 @@ curl -X POST http://localhost:8000/v1/completions \
 
 The service will automatically:
 1. Download the LoRA adapter from Hugging Face Hub
-2. Load it into memory
-3. Use it for inference
-4. Cache it for future requests
+2. Copy the base model's chat template if the adapter lacks one (configurable)
+3. Load it into memory
+4. Use it for inference
+5. Cache it for future requests
 
 ### Chat Completions
 
@@ -152,6 +154,44 @@ response = client.completions.create(
     prompt="Hello, how are you?",
     max_tokens=100
 )
+```
+
+## Chat Template Handling
+
+The service automatically handles chat template compatibility between base models and LoRA adapters:
+
+### Automatic Chat Template Copying
+
+When `COPY_CHAT_TEMPLATE=true` (default), the service will:
+
+1. **Check if adapter has chat_template**: If the LoRA adapter already has a `chat_template` in its `tokenizer_config.json`, it will be used as-is
+2. **Copy from base model**: If the adapter lacks a `chat_template` but the base model has one, it will be automatically copied to the adapter
+3. **Skip if unavailable**: If neither the adapter nor base model has a `chat_template`, the operation is skipped
+
+### Configuration Options
+
+```bash
+# Enable automatic chat template copying (default)
+COPY_CHAT_TEMPLATE=true
+
+# Disable automatic chat template copying
+COPY_CHAT_TEMPLATE=false
+```
+
+### Benefits
+
+- **Prevents vLLM errors**: Avoids inference failures when adapters lack chat templates
+- **Maintains compatibility**: Ensures adapters work seamlessly with chat completion endpoints
+- **Configurable**: Can be disabled if custom behavior is needed
+- **Safe**: Only copies when needed, preserves existing adapter templates
+
+### Example Scenario
+
+```
+Base Model: meta-llama/Llama-3.2-1B-Instruct (has chat_template)
+LoRA Adapter: username/my-adapter (missing chat_template)
+
+Result: chat_template is automatically copied from base model to adapter
 ```
 
 ## Development
