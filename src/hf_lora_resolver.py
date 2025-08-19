@@ -37,6 +37,25 @@ class HuggingFaceLoRAResolver(LoRAResolver):
         local_path = self.cache_dir / lora_name.replace("/", "_")
         return local_path / "tokenizer_config.json"
 
+    def _get_base_model_chat_template_jinja_path(self, base_model_name: str) -> Path:
+        """Get the path to the base model's chat_template.jinja file."""
+        # Convert model name to cache directory format (e.g., "Qwen/Qwen3-4B" -> "models--Qwen--Qwen3-4B")
+        cache_model_name = f"models--{base_model_name.replace('/', '--')}"
+        model_cache_dir = self.cache_dir / cache_model_name
+        
+        # Find the snapshot directory (there should be only one)
+        snapshots_dir = model_cache_dir / "snapshots"
+        if snapshots_dir.exists():
+            snapshot_dirs = [d for d in snapshots_dir.iterdir() if d.is_dir()]
+            if snapshot_dirs:
+                return snapshot_dirs[0] / "chat_template.jinja"
+        return None
+
+    def _get_adapter_chat_template_jinja_path(self, lora_name: str) -> Path:
+        """Get the path to the adapter's chat_template.jinja file."""
+        local_path = self.cache_dir / lora_name.replace("/", "_")
+        return local_path / "chat_template.jinja"
+
     def _read_tokenizer_config(self, config_path: Path) -> dict:
         """Read and parse tokenizer_config.json file."""
         if not config_path or not config_path.exists():
@@ -66,22 +85,33 @@ class HuggingFaceLoRAResolver(LoRAResolver):
 
         # Get paths
         adapter_config_path = self._get_adapter_tokenizer_config_path(lora_name)
+        adapter_jinja_path = self._get_adapter_chat_template_jinja_path(lora_name)
         base_model_config_path = self._get_base_model_tokenizer_config_path(base_model_name)
+        base_model_jinja_path = self._get_base_model_chat_template_jinja_path(base_model_name)
         
         # Read adapter tokenizer config
         adapter_config = self._read_tokenizer_config(adapter_config_path)
         
-        # Check if adapter already has a chat_template
-        if adapter_config.get("chat_template"):
+        # Check if adapter already has a chat_template in config or as a .jinja file
+        if adapter_config.get("chat_template") or (adapter_jinja_path and adapter_jinja_path.exists()):
             print(f"Adapter {lora_name} already has a chat_template, skipping copy")
             return
         
-        # Read base model tokenizer config
+        # Try to get chat template from base model config first
         base_model_config = self._read_tokenizer_config(base_model_config_path)
         base_chat_template = base_model_config.get("chat_template")
         
+        # If not found in config, check for chat_template.jinja file
+        if not base_chat_template and base_model_jinja_path and base_model_jinja_path.exists():
+            try:
+                with open(base_model_jinja_path, 'r', encoding='utf-8') as f:
+                    base_chat_template = f.read()
+                print(f"Found chat_template.jinja in base model {base_model_name}")
+            except IOError as e:
+                print(f"Warning: Failed to read chat_template.jinja from {base_model_jinja_path}: {e}")
+        
         if not base_chat_template:
-            print(f"Base model {base_model_name} does not have a chat_template, skipping copy")
+            print(f"Base model {base_model_name} does not have a chat_template (neither in config nor .jinja file), skipping copy")
             return
         
         # Copy chat template to adapter config
@@ -117,7 +147,7 @@ class HuggingFaceLoRAResolver(LoRAResolver):
                     repo_id=lora_name,
                     local_dir=str(local_path),
                     token=self.hf_token,
-                    allow_patterns=["*.json", "*.safetensors", "*.bin", "adapter_config.json", "adapter_model.*"],
+                    allow_patterns=["*.json", "*.safetensors", "*.bin", "*.jinja", "adapter_config.json", "adapter_model.*"],
                 )
             )
             print(f"Downloaded LoRA adapter {lora_name} to {local_path}")
