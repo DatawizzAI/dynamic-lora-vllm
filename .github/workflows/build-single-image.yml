@@ -71,8 +71,6 @@ jobs:
           build-args: |
             MODEL_ID=${{ inputs.model_id }}
             HF_TOKEN=${{ inputs.requires_token && secrets.hf_token || '' }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
           platforms: linux/amd64
 
       - name: Generate build summary
