@@ -118,6 +118,74 @@ async def run_vllm_server_async(args):
         raise
 
 
+def infer_tool_call_parser(model_id: str) -> str:
+    """
+    Infer the appropriate tool call parser based on model ID.
+    Returns the parser name or None if no suitable parser is found.
+    """
+    model_lower = model_id.lower()
+    
+    # Hermes models
+    if "nousresearch/hermes-" in model_lower:
+        return "hermes"
+    
+    # Mistral models  
+    if "mistralai/mistral-" in model_lower:
+        return "mistral"
+    
+    # Llama models
+    if "meta-llama/llama-" in model_lower:
+        if "llama-4" in model_lower:
+            return "llama4_pythonic"
+        elif "llama-3.1" in model_lower or "llama-3.2" in model_lower:
+            return "llama3_json"
+    
+    # IBM Granite models
+    if "ibm-granite/granite-" in model_lower:
+        if "granite-20b-functioncalling" in model_lower:
+            return "granite-20b-fc"
+        return "granite"
+    
+    # InternLM models
+    if "internlm/internlm2_5-" in model_lower or "internlm/internlm2.5-" in model_lower:
+        return "internlm"
+    
+    # Jamba models
+    if "ai21labs/ai21-jamba-" in model_lower:
+        return "jamba"
+    
+    # xLAM models
+    if ("salesforce/llama-xlam-" in model_lower or 
+        "salesforce/xlam-" in model_lower or 
+        "salesforce/qwen-xlam-" in model_lower):
+        return "xlam"
+    
+    # Qwen models (use hermes parser)
+    if ("qwen/qwen2.5-" in model_lower or 
+        "qwen/qwq-" in model_lower):
+        return "hermes"
+    
+    # MiniMax models
+    if "minimaxai/minimax-m1-" in model_lower:
+        return "minimax_m1"
+    
+    # DeepSeek-V3 models
+    if ("deepseek-ai/deepseek-v3-" in model_lower or 
+        "deepseek-ai/deepseek-r1-" in model_lower):
+        return "deepseek_v3"
+    
+    # Kimi-K2 models
+    if "moonshotai/kimi-k2-" in model_lower:
+        return "kimi_k2"
+    
+    # Hunyuan models
+    if "tencent/hunyuan-a13b-" in model_lower:
+        return "hunyuan_a13b"
+    
+    # Return None if no parser is found
+    return None
+
+
 def main():
     """Main entry point - Use the exact same pattern as vLLM's official server."""
     global server_state
@@ -137,6 +205,8 @@ def main():
     max_cpu_loras = get_env_var("MAX_CPU_LORAS", "5", int)
     api_key = get_env_var("API_KEY")
     cache_dir = get_env_var("CACHE_DIR", ".cache/huggingface")
+    enable_auto_tool_choice = get_env_var("ENABLE_AUTO_TOOL_CHOICE", "true", bool)
+    tool_call_parser = get_env_var("TOOL_CALL_PARSER")
     
     # Ensure HuggingFace uses the correct cache directory
     os.environ["HF_HOME"] = cache_dir
@@ -187,6 +257,25 @@ def main():
         
         if api_key:
             cli_args.extend(["--api-key", api_key])
+        
+        # Add auto tool choice configuration
+        if enable_auto_tool_choice:
+            cli_args.append("--enable-auto-tool-choice")
+            
+            # Determine tool call parser
+            parser_to_use = tool_call_parser
+            if not parser_to_use:
+                parser_to_use = infer_tool_call_parser(model_id)
+            
+            if parser_to_use:
+                cli_args.extend(["--tool-call-parser", parser_to_use])
+                print(f"Auto tool choice enabled with parser: {parser_to_use}")
+            else:
+                print("Auto tool choice enabled but no compatible parser found for model")
+        elif tool_call_parser:
+            # If auto tool choice is disabled but parser is explicitly set, still use it
+            cli_args.extend(["--tool-call-parser", tool_call_parser])
+            print(f"Tool call parser set: {tool_call_parser}")
         
         # Parse arguments using vLLM's official parser
         args = parser.parse_args(cli_args)

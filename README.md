@@ -6,6 +6,7 @@ A vLLM-based LLM serving service that supports dynamically loading LoRA adapters
 
 - **Dynamic LoRA Loading**: Automatically downloads and loads LoRA adapters from Hugging Face Hub on demand
 - **OpenAI Compatible API**: Uses vLLM's built-in OpenAI compatible API server
+- **Automatic Tool Choice**: Built-in function calling support with automatic parser detection
 - **Containerized Deployment**: Docker-based deployment for easy scaling and management
 - **Flexible Configuration**: Environment variable based configuration
 - **Caching**: Intelligent caching of downloaded models and adapters
@@ -66,6 +67,8 @@ docker run -d \
 | `MAX_LORA_RANK` | `16` | Maximum rank of LoRA adapters |
 | `MAX_CPU_LORAS` | `5` | Maximum LoRA adapters on CPU |
 | `COPY_CHAT_TEMPLATE` | `true` | Copy chat template from base model to LoRA adapters that lack one |
+| `ENABLE_AUTO_TOOL_CHOICE` | `true` | Enable automatic function calling support |
+| `TOOL_CALL_PARSER` | - | Explicitly set tool call parser (auto-inferred from model if not set) |
 
 ## Usage
 
@@ -131,6 +134,51 @@ curl -X POST http://localhost:8000/v1/chat/completions \
     "max_tokens": 100
   }'
 ```
+
+### Function Calling (Tool Use)
+
+The service automatically enables function calling for compatible models. When `ENABLE_AUTO_TOOL_CHOICE=true` (default), the service:
+
+1. **Auto-detects parser**: Automatically selects the appropriate tool call parser based on the model ID
+2. **Supports major models**: Hermes, Mistral, Llama 3.1+, Granite, InternLM, Jamba, xLAM, Qwen, MiniMax, DeepSeek, Kimi, and Hunyuan models
+3. **Flexible configuration**: Override parser selection with `TOOL_CALL_PARSER` environment variable
+
+**Example function calling request:**
+```bash
+curl -X POST http://localhost:8000/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "meta-llama/Llama-3.2-1B-Instruct",
+    "messages": [
+      {"role": "user", "content": "What is the weather like in San Francisco?"}
+    ],
+    "tools": [
+      {
+        "type": "function",
+        "function": {
+          "name": "get_weather",
+          "description": "Get current weather for a location",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "location": {"type": "string", "description": "City name"}
+            },
+            "required": ["location"]
+          }
+        }
+      }
+    ],
+    "tool_choice": "auto"
+  }'
+```
+
+**Supported Models & Auto-detected Parsers:**
+- **Hermes models** (`NousResearch/Hermes-*`) → `hermes`
+- **Mistral models** (`mistralai/Mistral-*`) → `mistral`
+- **Llama 3.1/3.2** (`meta-llama/Llama-3.1-*`, `meta-llama/Llama-3.2-*`) → `llama3_json`
+- **Llama 4** (`meta-llama/Llama-4-*`) → `llama4_pythonic`
+- **Qwen 2.5** (`Qwen/Qwen2.5-*`) → `hermes`
+- And many more...
 
 ### Using with OpenAI Python Client
 
