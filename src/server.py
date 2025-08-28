@@ -208,6 +208,22 @@ def main():
     enable_auto_tool_choice = get_env_var("ENABLE_AUTO_TOOL_CHOICE", "true", bool)
     tool_call_parser = get_env_var("TOOL_CALL_PARSER")
     
+    # Multimodal configuration
+    image_fetch_timeout = get_env_var("IMAGE_FETCH_TIMEOUT", "5", int)
+    video_fetch_timeout = get_env_var("VIDEO_FETCH_TIMEOUT", "30", int)
+    audio_fetch_timeout = get_env_var("AUDIO_FETCH_TIMEOUT", "10", int)
+    max_images_per_prompt = get_env_var("MAX_IMAGES_PER_PROMPT", "4", int)
+    max_videos_per_prompt = get_env_var("MAX_VIDEOS_PER_PROMPT", "1", int)
+    max_audios_per_prompt = get_env_var("MAX_AUDIOS_PER_PROMPT", "1", int)
+    
+    # Set multimodal environment variables for vLLM
+    if image_fetch_timeout:
+        os.environ["VLLM_IMAGE_FETCH_TIMEOUT"] = str(image_fetch_timeout)
+    if video_fetch_timeout:
+        os.environ["VLLM_VIDEO_FETCH_TIMEOUT"] = str(video_fetch_timeout)
+    if audio_fetch_timeout:
+        os.environ["VLLM_AUDIO_FETCH_TIMEOUT"] = str(audio_fetch_timeout)
+    
     # Ensure HuggingFace uses the correct cache directory
     os.environ["HF_HOME"] = cache_dir
     os.environ["TRANSFORMERS_CACHE"] = cache_dir
@@ -222,6 +238,13 @@ def main():
     print(f"Starting health server on {host}:{health_port}")
     print(f"Starting vLLM server on {host}:{port} with model: {model_id}")
     print(f"LoRA configuration: max_loras={max_loras}, max_lora_rank={max_lora_rank}, max_cpu_loras={max_cpu_loras}")
+    
+    # Print multimodal configuration if any limits are set
+    if max_images_per_prompt > 0 or max_videos_per_prompt > 0 or max_audios_per_prompt > 0:
+        print(f"Multimodal configuration:")
+        print(f"  - Image: fetch_timeout={image_fetch_timeout}s, max_per_prompt={max_images_per_prompt}")
+        print(f"  - Video: fetch_timeout={video_fetch_timeout}s, max_per_prompt={max_videos_per_prompt}")
+        print(f"  - Audio: fetch_timeout={audio_fetch_timeout}s, max_per_prompt={max_audios_per_prompt}")
     
     # Start health server in a separate thread
     health_thread = threading.Thread(
@@ -257,6 +280,19 @@ def main():
         
         if api_key:
             cli_args.extend(["--api-key", api_key])
+        
+        # Add multimodal limits if configured
+        mm_limits = {}
+        if max_images_per_prompt > 0:
+            mm_limits["image"] = max_images_per_prompt
+        if max_videos_per_prompt > 0:
+            mm_limits["video"] = max_videos_per_prompt
+        if max_audios_per_prompt > 0:
+            mm_limits["audio"] = max_audios_per_prompt
+        
+        if mm_limits:
+            import json
+            cli_args.extend(["--limit-mm-per-prompt", json.dumps(mm_limits)])
         
         # Add auto tool choice configuration
         if enable_auto_tool_choice:

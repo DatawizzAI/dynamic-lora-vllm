@@ -37,14 +37,31 @@ This project implements a vLLM-based LLM serving service that supports dynamical
 5. Subsequent requests use cached version
 
 ### Environment Variables
+
+#### Core Configuration
 - `MODEL_ID`: Base model (default: "meta-llama/Llama-3.2-1B-Instruct")
 - `API_KEY`: API key for server authentication (optional - leave empty for no auth)
 - `HF_TOKEN`: HuggingFace token for private model access (optional)
 - `CACHE_DIR`: Model/adapter cache location (default: ".cache/huggingface")
+- `PORT`/`HOST`: Server configuration
+
+#### LoRA Configuration
 - `MAX_LORAS`: Maximum concurrent LoRA adapters (default: 10)
 - `MAX_LORA_RANK`: Maximum LoRA rank (default: 16)
 - `MAX_CPU_LORAS`: CPU LoRA limit (default: 5)
-- `PORT`/`HOST`: Server configuration
+
+#### Multimodal Configuration
+- **Fetch Timeouts** (in seconds):
+  - `IMAGE_FETCH_TIMEOUT`: Timeout for fetching images via HTTP URLs (default: 5)
+  - `VIDEO_FETCH_TIMEOUT`: Timeout for fetching videos via HTTP URLs (default: 30)
+  - `AUDIO_FETCH_TIMEOUT`: Timeout for fetching audio via HTTP URLs (default: 10)
+
+- **Per-Prompt Limits**:
+  - `MAX_IMAGES_PER_PROMPT`: Maximum number of images per request (default: 4)
+  - `MAX_VIDEOS_PER_PROMPT`: Maximum number of videos per request (default: 1)
+  - `MAX_AUDIOS_PER_PROMPT`: Maximum number of audio files per request (default: 1)
+
+Note: Set any of the MAX_*_PER_PROMPT values to 0 to disable that input type. These limits are passed to vLLM via the `--limit-mm-per-prompt` argument.
 
 ### Build Arguments (Docker)
 - `BUILD_MODEL_ID`: Model to pre-download during Docker image build (optional)
