@@ -8,7 +8,7 @@ from fastapi.responses import Response
 import uvicorn
 from vllm.entrypoints.openai.api_server import run_server, cli_env_setup
 from vllm.entrypoints.openai.cli_args import make_arg_parser, validate_parsed_serve_args
-from vllm.utils import FlexibleArgumentParser
+from vllm.engine.arg_utils import FlexibleArgumentParser
 from vllm.lora.resolver import LoRAResolverRegistry
 from hf_lora_resolver import HuggingFaceLoRAResolver
 
