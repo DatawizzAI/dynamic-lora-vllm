@@ -21,6 +21,10 @@ RUN pip install --no-cache-dir "numpy<2.0,>=1.24.0"
 # and torch is already available in the base image
 RUN pip install --no-cache-dir "flash-attn>=2.7.1,<=2.8.0" --no-build-isolation
 
+# Add flashinfer to disable warning
+# WARNING 12-13 21:17:21 [topk_topp_sampler.py:59] FlashInfer is not available. Falling back to the PyTorch-native implementation of top-p & top-k sampling. For the best performance, please install FlashInfer.
+RUN pip install flashinfer-cubin
+
 # Install remaining dependencies
 # UV_HTTP_TIMEOUT increased for large package downloads
 # torch is marked as provided by base image via override
