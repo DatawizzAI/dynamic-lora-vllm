@@ -29,11 +29,13 @@ env:
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
-  # Define the predefined models and dockerfiles
+  # Define the build matrices
   setup:
     runs-on: ubuntu-latest
     outputs:
-      matrix: ${{ steps.matrix.outputs.matrix }}
+      base_matrix: ${{ steps.matrix.outputs.base_matrix }}
+      model_matrix: ${{ steps.matrix.outputs.model_matrix }}
+      manifests: ${{ steps.matrix.outputs.manifests }}
       custom_model: ${{ steps.custom.outputs.model }}
       date_tag: ${{ steps.date.outputs.date }}
     steps:
@@ -41,10 +43,13 @@ jobs:
         id: date
         run: echo "date=$(date +'%Y%m%d')" >> $GITHUB_OUTPUT
 
-      - name: Set build matrix
+      - name: Set build matrices
         id: matrix
+        env:
+          REGISTRY: ghcr.io
+          IMAGE_NAME: ${{ github.repository }}
         run: |
-          # Define models and dockerfiles, then create combined matrix
+          # Define models, dockerfiles, and architectures
           MODELS='[
             {"model_id":"google/gemma-3-270m-it","requires_token":true,"tag_suffix":"gemma-3-270m-it"},
             {"model_id":"google/gemma-3-4b-it","requires_token":true,"tag_suffix":"gemma-3-4b-it"},
@@ -56,23 +61,67 @@ jobs:
             {"model_id":"Qwen/Qwen3-14B","requires_token":false,"tag_suffix":"qwen3-14b"}
           ]'
           DOCKERFILES='[
-            {"dockerfile":"Dockerfile","tag_variant":""},
-            {"dockerfile":"Dockerfile.pt25","tag_variant":"-pt25"}
+            {"dockerfile":"Dockerfile","base_tag":"base","tag_variant":""},
+            {"dockerfile":"Dockerfile.pt25","base_tag":"base-pt25","tag_variant":"-pt25"}
           ]'
-          # Combine models and dockerfiles into a single matrix
-          MATRIX=$(jq -c -n --argjson models "$MODELS" --argjson dockerfiles "$DOCKERFILES" '
+          ARCHITECTURES='[
+            {"arch":"amd64","platform":"linux/amd64","runs_on":"ubuntu-latest-l"},
+            {"arch":"arm64","platform":"linux/arm64","runs_on":"ubuntu-latest-l-arm"}
+          ]'
+
+          # Base image matrix: Dockerfiles × Architectures (4 builds)
+          BASE_MATRIX=$(jq -c -n --argjson dockerfiles "$DOCKERFILES" --argjson archs "$ARCHITECTURES" '
+            [
+              $dockerfiles[] as $dockerfile |
+              $archs[] as $arch |
+              {
+                dockerfile: $dockerfile.dockerfile,
+                tag_suffix: ($dockerfile.base_tag + "-" + $arch.arch),
+                platform: $arch.platform,
+                runs_on: $arch.runs_on,
+                arch: $arch.arch
+              }
+            ]
+          ')
+          echo "base_matrix=${BASE_MATRIX}" >> $GITHUB_OUTPUT
+
+          # Model image matrix: Models × Dockerfiles × Architectures (32 builds)
+          # Each entry includes the base_image reference
+          MODEL_MATRIX=$(jq -c -n \
+            --argjson models "$MODELS" \
+            --argjson dockerfiles "$DOCKERFILES" \
+            --argjson archs "$ARCHITECTURES" \
+            --arg registry "$REGISTRY" \
+            --arg image_name "$IMAGE_NAME" '
+            [
+              $models[] as $model |
+              $dockerfiles[] as $dockerfile |
+              $archs[] as $arch |
+              {
+                model_id: $model.model_id,
+                requires_token: $model.requires_token,
+                base_tag: ($model.tag_suffix + $dockerfile.tag_variant),
+                tag_suffix: ($model.tag_suffix + $dockerfile.tag_variant + "-" + $arch.arch),
+                base_image: ($registry + "/" + $image_name + ":" + $dockerfile.base_tag + "-" + $arch.arch + "-latest"),
+                platform: $arch.platform,
+                runs_on: $arch.runs_on,
+                arch: $arch.arch
+              }
+            ]
+          ')
+          echo "model_matrix=${MODEL_MATRIX}" >> $GITHUB_OUTPUT
+
+          # Manifests: unique model+dockerfile combinations for multi-arch manifests
+          MANIFESTS=$(jq -c -n --argjson models "$MODELS" --argjson dockerfiles "$DOCKERFILES" '
             [
               $models[] as $model |
               $dockerfiles[] as $dockerfile |
               {
-                model_id: $model.model_id,
-                requires_token: $model.requires_token,
-                tag_suffix: ($model.tag_suffix + $dockerfile.tag_variant),
-                dockerfile: $dockerfile.dockerfile
+                base_tag: ($model.tag_suffix + $dockerfile.tag_variant)
               }
             ]
           ')
-          echo "matrix=${MATRIX}" >> $GITHUB_OUTPUT
+          echo "manifests=${MANIFESTS}" >> $GITHUB_OUTPUT
 
       - name: Set custom model
         id: custom
@@ -88,13 +137,29 @@ jobs:
             echo "model=" >> $GITHUB_OUTPUT
           fi
 
-  # Build predefined models (only on push to main, not manual dispatch)
-  build-predefined:
+  # Stage 1: Build base images (4 builds: 2 Dockerfiles × 2 architectures)
+  build-base-images:
     if: github.event_name == 'push'
     needs: setup
     strategy:
       matrix:
-        build: ${{ fromJson(needs.setup.outputs.matrix) }}
+        build: ${{ fromJson(needs.setup.outputs.base_matrix) }}
+      fail-fast: false
+    uses: ./.github/workflows/build-base-image.yml
+    with:
+      dockerfile: ${{ matrix.build.dockerfile }}
+      tag_suffix: ${{ matrix.build.tag_suffix }}
+      date_tag: ${{ needs.setup.outputs.date_tag }}
+      runs_on: ${{ matrix.build.runs_on }}
+      platform: ${{ matrix.build.platform }}
+
+  # Stage 2: Build model images (32 builds, but fast - just downloads models)
+  build-model-images:
+    if: github.event_name == 'push'
+    needs: [setup, build-base-images]
+    strategy:
+      matrix:
+        build: ${{ fromJson(needs.setup.outputs.model_matrix) }}
       fail-fast: false
     uses: ./.github/workflows/build-single-image.yml
     with:
@@ -102,11 +167,61 @@ jobs:
       tag_suffix: ${{ matrix.build.tag_suffix }}
       date_tag: ${{ needs.setup.outputs.date_tag }}
       requires_token: ${{ matrix.build.requires_token }}
-      dockerfile: ${{ matrix.build.dockerfile }}
+      base_image: ${{ matrix.build.base_image }}
+      runs_on: ${{ matrix.build.runs_on }}
+      platform: ${{ matrix.build.platform }}
     secrets:
       hf_token: ${{ secrets.HF_TOKEN }}
 
-  # Build custom model (only on manual dispatch)
+  # Stage 3: Create multi-arch manifests after all model builds complete
+  create-manifests:
+    if: github.event_name == 'push'
+    needs: [setup, build-model-images]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      matrix:
+        manifest: ${{ fromJson(needs.setup.outputs.manifests) }}
+      fail-fast: false
+    steps:
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create and push multi-arch manifest
+        env:
+          BASE_TAG: ${{ matrix.manifest.base_tag }}
+          DATE_TAG: ${{ needs.setup.outputs.date_tag }}
+        run: |
+          IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}"
+
+          # Create manifest for -latest tag
+          docker manifest create ${IMAGE}:${BASE_TAG}-latest \
+            ${IMAGE}:${BASE_TAG}-amd64-latest \
+            ${IMAGE}:${BASE_TAG}-arm64-latest
+          docker manifest push ${IMAGE}:${BASE_TAG}-latest
+
+          # Create manifest for date tag
+          docker manifest create ${IMAGE}:${BASE_TAG}-${DATE_TAG} \
+            ${IMAGE}:${BASE_TAG}-amd64-${DATE_TAG} \
+            ${IMAGE}:${BASE_TAG}-arm64-${DATE_TAG}
+          docker manifest push ${IMAGE}:${BASE_TAG}-${DATE_TAG}
+
+          echo "Created multi-arch manifests for ${BASE_TAG}"
+
+      - name: Generate manifest summary
+        run: |
+          echo "## Manifest Summary" >> $GITHUB_STEP_SUMMARY
+          echo "- **Base Tag:** ${{ matrix.manifest.base_tag }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Multi-arch Tags:** ${{ matrix.manifest.base_tag }}-latest, ${{ matrix.manifest.base_tag }}-${{ needs.setup.outputs.date_tag }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Architectures:** amd64, arm64" >> $GITHUB_STEP_SUMMARY
+
+  # Build custom model (only on manual dispatch) - uses default base image
   build-custom:
     if: github.event_name == 'workflow_dispatch' && inputs.custom_model != ''
     needs: setup
@@ -116,5 +231,6 @@ jobs:
       tag_suffix: ${{ fromJson(needs.setup.outputs.custom_model).tag_suffix }}
       date_tag: ${{ needs.setup.outputs.date_tag }}
       requires_token: ${{ fromJson(needs.setup.outputs.custom_model).requires_token }}
+      base_image: ghcr.io/${{ github.repository }}:base-amd64-latest
     secrets:
       hf_token: ${{ secrets.HF_TOKEN }}

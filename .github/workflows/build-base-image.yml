@@ -1,28 +1,20 @@
-name: Build Single Model Image
+name: Build Base Image
 
 on:
   workflow_call:
     inputs:
-      model_id:
+      dockerfile:
         required: true
         type: string
-        description: 'HuggingFace model ID to pre-download'
+        description: 'Dockerfile to use for the build'
       tag_suffix:
         required: true
         type: string
-        description: 'Tag suffix for the image'
+        description: 'Tag suffix for the base image (e.g., base, base-pt25)'
       date_tag:
         required: true
         type: string
         description: 'Date tag for the image'
-      requires_token:
-        required: true
-        type: boolean
-        description: 'Whether this model requires HF token'
-      base_image:
-        required: true
-        type: string
-        description: 'Base image to build on top of (e.g., ghcr.io/org/repo:base-amd64-latest)'
       runs_on:
         required: false
         type: string
@@ -33,10 +25,6 @@ on:
         type: string
         default: 'linux/amd64'
         description: 'Docker platform to build for'
-    secrets:
-      hf_token:
-        required: false
-        description: 'HuggingFace token for private models'
 
 env:
   REGISTRY: ghcr.io
@@ -48,7 +36,7 @@ jobs:
     permissions:
       contents: read
       packages: write
-    
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -72,31 +60,24 @@ jobs:
             type=raw,value=${{ inputs.tag_suffix }}-latest
             type=raw,value=${{ inputs.tag_suffix }}-${{ inputs.date_tag }}
           labels: |
-            org.opencontainers.image.title=Dynamic LoRA vLLM (${{ inputs.model_id }})
-            org.opencontainers.image.description=vLLM server with pre-downloaded ${{ inputs.model_id }} model
+            org.opencontainers.image.title=Dynamic LoRA vLLM Base Image
+            org.opencontainers.image.description=vLLM base image with all dependencies (no model)
 
-      - name: Build and push Docker image
+      - name: Build and push base image
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: Dockerfile.model
+          file: ${{ inputs.dockerfile }}
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          build-args: |
-            BASE_IMAGE=${{ inputs.base_image }}
-            MODEL_ID=${{ inputs.model_id }}
-            HF_TOKEN=${{ inputs.requires_token && secrets.hf_token || '' }}
           platforms: ${{ inputs.platform }}
 
       - name: Generate build summary
         run: |
-          echo "## Model Image Build Summary" >> $GITHUB_STEP_SUMMARY
-          echo "- **Model:** ${{ inputs.model_id }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Base Image:** ${{ inputs.base_image }}" >> $GITHUB_STEP_SUMMARY
+          echo "## Base Image Build Summary" >> $GITHUB_STEP_SUMMARY
+          echo "- **Dockerfile:** ${{ inputs.dockerfile }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Platform:** ${{ inputs.platform }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Runner:** ${{ inputs.runs_on }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Tags:** ${{ inputs.tag_suffix }}-latest, ${{ inputs.tag_suffix }}-${{ inputs.date_tag }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Registry:** ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **HF Token Required:** ${{ inputs.requires_token }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Build Time:** $(date)" >> $GITHUB_STEP_SUMMARY

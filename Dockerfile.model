@@ -1,0 +1,34 @@
+# Model-only Dockerfile - downloads model on top of a pre-built base image
+# This is used for the two-stage build process where dependencies are built once
+# and models are downloaded separately for each variant.
+
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
+
+# Build arguments for model download
+ARG MODEL_ID=""
+ARG HF_TOKEN=""
+
+# Download model if MODEL_ID is provided
+RUN if [ -n "$MODEL_ID" ] && [ "$MODEL_ID" != "" ]; then \
+        echo "Pre-downloading model: $MODEL_ID"; \
+        mkdir -p /app/.cache/huggingface; \
+        if [ -n "$HF_TOKEN" ] && [ "$HF_TOKEN" != "" ]; then \
+            export HUGGING_FACE_HUB_TOKEN="$HF_TOKEN"; \
+        fi; \
+        python -c "import os; from huggingface_hub import snapshot_download; \
+                   cache_dir = '/app/.cache/huggingface'; \
+                   token = os.environ.get('HUGGING_FACE_HUB_TOKEN', None); \
+                   model_id = '$MODEL_ID'; \
+                   print(f'Downloading {model_id} to {cache_dir}'); \
+                   snapshot_download(repo_id=model_id, \
+                                   cache_dir=cache_dir, \
+                                   token=token, \
+                                   ignore_patterns=['*.bin'])" && \
+        echo "Model pre-download completed"; \
+    else \
+        echo "No MODEL_ID provided, skipping model pre-download"; \
+    fi
+
+# Update MODEL_ID environment variable
+ENV MODEL_ID=${MODEL_ID:-"meta-llama/Llama-3.2-1B-Instruct"}
