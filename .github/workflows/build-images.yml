@@ -60,64 +60,60 @@ jobs:
             {"model_id":"Qwen/Qwen3-8B","requires_token":false,"tag_suffix":"qwen3-8b"},
             {"model_id":"Qwen/Qwen3-14B","requires_token":false,"tag_suffix":"qwen3-14b"}
           ]'
-          DOCKERFILES='[
-            {"dockerfile":"Dockerfile","base_tag":"base","tag_variant":""},
-            {"dockerfile":"Dockerfile.pt25","base_tag":"base-pt25","tag_variant":"-pt25"}
-          ]'
-          ARCHITECTURES='[
-            {"arch":"amd64","platform":"linux/amd64","runs_on":"ubuntu-latest-l"},
-            {"arch":"arm64","platform":"linux/arm64","runs_on":"ubuntu-latest-l-arm"}
+          # Define dockerfile + architecture combinations
+          # Default Dockerfile: amd64 only
+          # PT25 Dockerfile: amd64 and arm64
+          DOCKERFILE_ARCHS='[
+            {"dockerfile":"Dockerfile","base_tag":"base","tag_variant":"","arch":"amd64","platform":"linux/amd64","runs_on":"ubuntu-latest-l"},
+            {"dockerfile":"Dockerfile.pt25","base_tag":"base-pt25","tag_variant":"-pt25","arch":"amd64","platform":"linux/amd64","runs_on":"ubuntu-latest-l"},
+            {"dockerfile":"Dockerfile.pt25","base_tag":"base-pt25","tag_variant":"-pt25","arch":"arm64","platform":"linux/arm64","runs_on":"ubuntu-latest-l-arm"}
           ]'
 
-          # Base image matrix: Dockerfiles × Architectures (4 builds)
-          BASE_MATRIX=$(jq -c -n --argjson dockerfiles "$DOCKERFILES" --argjson archs "$ARCHITECTURES" '
+          # Base image matrix: 3 builds (1 for default + 2 for pt25)
+          BASE_MATRIX=$(jq -c -n --argjson dockerfile_archs "$DOCKERFILE_ARCHS" '
             [
-              $dockerfiles[] as $dockerfile |
-              $archs[] as $arch |
+              $dockerfile_archs[] |
               {
-                dockerfile: $dockerfile.dockerfile,
-                tag_suffix: ($dockerfile.base_tag + "-" + $arch.arch),
-                platform: $arch.platform,
-                runs_on: $arch.runs_on,
-                arch: $arch.arch
+                dockerfile: .dockerfile,
+                tag_suffix: (.base_tag + "-" + .arch),
+                platform: .platform,
+                runs_on: .runs_on,
+                arch: .arch
               }
             ]
           ')
           echo "base_matrix=${BASE_MATRIX}" >> $GITHUB_OUTPUT
 
-          # Model image matrix: Models × Dockerfiles × Architectures (32 builds)
+          # Model image matrix: Models × Dockerfile/Arch combinations (24 builds)
           # Each entry includes the base_image reference
           MODEL_MATRIX=$(jq -c -n \
             --argjson models "$MODELS" \
-            --argjson dockerfiles "$DOCKERFILES" \
-            --argjson archs "$ARCHITECTURES" \
+            --argjson dockerfile_archs "$DOCKERFILE_ARCHS" \
             --arg registry "$REGISTRY" \
             --arg image_name "$IMAGE_NAME" '
             [
               $models[] as $model |
-              $dockerfiles[] as $dockerfile |
-              $archs[] as $arch |
+              $dockerfile_archs[] as $da |
               {
                 model_id: $model.model_id,
                 requires_token: $model.requires_token,
-                base_tag: ($model.tag_suffix + $dockerfile.tag_variant),
-                tag_suffix: ($model.tag_suffix + $dockerfile.tag_variant + "-" + $arch.arch),
-                base_image: ($registry + "/" + $image_name + ":" + $dockerfile.base_tag + "-" + $arch.arch + "-latest"),
-                platform: $arch.platform,
-                runs_on: $arch.runs_on,
-                arch: $arch.arch
+                base_tag: ($model.tag_suffix + $da.tag_variant),
+                tag_suffix: ($model.tag_suffix + $da.tag_variant + "-" + $da.arch),
+                base_image: ($registry + "/" + $image_name + ":" + $da.base_tag + "-" + $da.arch + "-latest"),
+                platform: $da.platform,
+                runs_on: $da.runs_on,
+                arch: $da.arch
               }
             ]
           ')
           echo "model_matrix=${MODEL_MATRIX}" >> $GITHUB_OUTPUT
 
-          # Manifests: unique model+dockerfile combinations for multi-arch manifests
-          MANIFESTS=$(jq -c -n --argjson models "$MODELS" --argjson dockerfiles "$DOCKERFILES" '
+          # Manifests for pt25 (multi-arch) - default dockerfile is single-arch so no manifest needed
+          MANIFESTS=$(jq -c -n --argjson models "$MODELS" '
             [
               $models[] as $model |
-              $dockerfiles[] as $dockerfile |
               {
-                base_tag: ($model.tag_suffix + $dockerfile.tag_variant)
+                base_tag: ($model.tag_suffix + "-pt25")
               }
             ]
           ')
