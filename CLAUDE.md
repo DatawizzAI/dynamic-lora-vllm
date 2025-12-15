@@ -1,4 +1,4 @@
-# Dynamic LoRA vLLM Service - Claude Context 
+# Dynamic LoRA vLLM Service - Claude Context
 
 ## Project Overview
 This project implements a vLLM-based LLM serving service that supports dynamically loading LoRA adapters from Hugging Face. The service exposes an OpenAI compatible API and automatically downloads/caches LoRA adapters on demand.
