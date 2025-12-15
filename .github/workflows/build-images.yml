@@ -64,11 +64,11 @@ jobs:
           ]'
           # Define dockerfile + architecture combinations
           # Default Dockerfile: amd64 only
-          # PT25 Dockerfile: amd64 and arm64
+          # PT25 Dockerfile: amd64 (pytorch base) and arm64 (nvidia vllm base)
           DOCKERFILE_ARCHS='[
             {"dockerfile":"Dockerfile","base_tag":"base","tag_variant":"","arch":"amd64","platform":"linux/amd64","runs_on":"ubuntu-latest-l"},
             {"dockerfile":"Dockerfile.pt25","base_tag":"base-pt25","tag_variant":"-pt25","arch":"amd64","platform":"linux/amd64","runs_on":"ubuntu-latest-l"},
-            {"dockerfile":"Dockerfile.pt25","base_tag":"base-pt25","tag_variant":"-pt25","arch":"arm64","platform":"linux/arm64","runs_on":"ubuntu-latest-l-arm"}
+            {"dockerfile":"Dockerfile.pt25-arm","base_tag":"base-pt25","tag_variant":"-pt25","arch":"arm64","platform":"linux/arm64","runs_on":"ubuntu-latest-l-arm"}
           ]'
 
           # Base image matrix: 3 builds (1 for default + 2 for pt25)
