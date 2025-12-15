@@ -49,6 +49,8 @@ jobs:
           REGISTRY: ghcr.io
           IMAGE_NAME: ${{ github.repository }}
         run: |
+          # Lowercase the image name (Docker requires lowercase)
+          IMAGE_NAME_LOWER=$(echo "$IMAGE_NAME" | tr '[:upper:]' '[:lower:]')
           # Define models, dockerfiles, and architectures
           MODELS='[
             {"model_id":"google/gemma-3-270m-it","requires_token":true,"tag_suffix":"gemma-3-270m-it"},
@@ -90,7 +92,7 @@ jobs:
             --argjson models "$MODELS" \
             --argjson dockerfile_archs "$DOCKERFILE_ARCHS" \
             --arg registry "$REGISTRY" \
-            --arg image_name "$IMAGE_NAME" '
+            --arg image_name "$IMAGE_NAME_LOWER" '
             [
               $models[] as $model |
               $dockerfile_archs[] as $da |
