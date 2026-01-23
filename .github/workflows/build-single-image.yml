@@ -63,11 +63,15 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Set lowercase image name
+        id: image
+        run: echo "name=$(echo '${{ env.IMAGE_NAME }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
+
       - name: Extract metadata
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          images: ${{ env.REGISTRY }}/${{ steps.image.outputs.name }}
           tags: |
             type=raw,value=${{ inputs.tag_suffix }}-latest
             type=raw,value=${{ inputs.tag_suffix }}-${{ inputs.date_tag }}
@@ -97,6 +101,6 @@ jobs:
           echo "- **Platform:** ${{ inputs.platform }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Runner:** ${{ inputs.runs_on }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Tags:** ${{ inputs.tag_suffix }}-latest, ${{ inputs.tag_suffix }}-${{ inputs.date_tag }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Registry:** ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Registry:** ${{ env.REGISTRY }}/${{ steps.image.outputs.name }}" >> $GITHUB_STEP_SUMMARY
           echo "- **HF Token Required:** ${{ inputs.requires_token }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Build Time:** $(date)" >> $GITHUB_STEP_SUMMARY

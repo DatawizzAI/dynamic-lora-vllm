@@ -2,7 +2,7 @@ name: Build Docker Images
 
 on:
   push:
-    branches: [main]
+    branches: ['**']  # Support all branches
   workflow_dispatch:
     inputs:
       custom_model:
@@ -16,6 +16,11 @@ on:
         default: 'custom'
       hf_token_required:
         description: 'Does this model require HF token?'
+        required: false
+        type: boolean
+        default: false
+      build_all_models:
+        description: 'Build all predefined models (only works on push or main branch)'
         required: false
         type: boolean
         default: false
@@ -38,19 +43,58 @@ jobs:
       manifests: ${{ steps.matrix.outputs.manifests }}
       custom_model: ${{ steps.custom.outputs.model }}
       date_tag: ${{ steps.date.outputs.date }}
+      image_name_lower: ${{ steps.matrix.outputs.image_name_lower }}
+      branch_name: ${{ steps.matrix.outputs.branch_name }}
+      branch_suffix: ${{ steps.matrix.outputs.branch_suffix }}
+      should_build_all: ${{ steps.matrix.outputs.should_build_all }}
     steps:
       - name: Set date tag
         id: date
         run: echo "date=$(date +'%Y%m%d')" >> $GITHUB_OUTPUT
 
-      - name: Set build matrices
+      - name: Set branch info and build matrices
         id: matrix
         env:
           REGISTRY: ghcr.io
           IMAGE_NAME: ${{ github.repository }}
         run: |
+          # Get branch name
+          BRANCH_NAME="${{ github.ref_name }}"
+          
+          # Convert branch name to lowercase and sanitize (Docker tag restrictions)
+          BRANCH_NAME_LOWER=$(echo "$BRANCH_NAME" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9-]/-/g' | sed 's/--*/-/g' | sed 's/^-\|-$//g')
+          
+          # Create branch suffix (empty for main, otherwise -branch-name)
+          if [ "$BRANCH_NAME_LOWER" = "main" ] || [ "$BRANCH_NAME_LOWER" = "master" ]; then
+            BRANCH_SUFFIX=""
+            SHOULD_BUILD_ALL="true"
+          else
+            BRANCH_SUFFIX="-${BRANCH_NAME_LOWER}"
+            # Build all models on push events (any branch) or if explicitly requested via workflow_dispatch
+            if [ "${{ github.event_name }}" == "push" ]; then
+              SHOULD_BUILD_ALL="true"
+            elif [ "${{ inputs.build_all_models }}" == "true" ]; then
+              SHOULD_BUILD_ALL="true"
+            else
+              SHOULD_BUILD_ALL="false"
+            fi
+          fi
+          
+          # Debug output
+          echo "Event: ${{ github.event_name }}"
+          echo "Branch: $BRANCH_NAME -> $BRANCH_NAME_LOWER"
+          echo "Branch Suffix: $BRANCH_SUFFIX"
+          echo "Should Build All: $SHOULD_BUILD_ALL"
+          
+          echo "branch_name=${BRANCH_NAME_LOWER}" >> $GITHUB_OUTPUT
+          echo "branch_suffix=${BRANCH_SUFFIX}" >> $GITHUB_OUTPUT
+          echo "should_build_all=${SHOULD_BUILD_ALL}" >> $GITHUB_OUTPUT
+          
           # Lowercase the image name (Docker requires lowercase)
           IMAGE_NAME_LOWER=$(echo "$IMAGE_NAME" | tr '[:upper:]' '[:lower:]')
+          echo "image_name_lower=${IMAGE_NAME_LOWER}" >> $GITHUB_OUTPUT
+          
+          echo "Branch: ${BRANCH_NAME} -> ${BRANCH_NAME_LOWER}, Suffix: ${BRANCH_SUFFIX}, Build All: ${SHOULD_BUILD_ALL}"
           # Define models, dockerfiles, and architectures
           MODELS='[
             {"model_id":"google/gemma-3-270m-it","requires_token":true,"tag_suffix":"gemma-3-270m-it"},
@@ -73,12 +117,14 @@ jobs:
           ]'
 
           # Base image matrix: 3 builds (1 for default + 2 for pt25)
-          BASE_MATRIX=$(jq -c -n --argjson dockerfile_archs "$DOCKERFILE_ARCHS" '
+          BASE_MATRIX=$(jq -c -n \
+            --argjson dockerfile_archs "$DOCKERFILE_ARCHS" \
+            --arg branch_suffix "$BRANCH_SUFFIX" '
             [
               $dockerfile_archs[] |
               {
                 dockerfile: .dockerfile,
-                tag_suffix: (.base_tag + "-" + .arch),
+                tag_suffix: (.base_tag + "-" + .arch + $branch_suffix),
                 platform: .platform,
                 runs_on: .runs_on,
                 arch: .arch
@@ -93,16 +139,17 @@ jobs:
             --argjson models "$MODELS" \
             --argjson dockerfile_archs "$DOCKERFILE_ARCHS" \
             --arg registry "$REGISTRY" \
-            --arg image_name "$IMAGE_NAME_LOWER" '
+            --arg image_name "$IMAGE_NAME_LOWER" \
+            --arg branch_suffix "$BRANCH_SUFFIX" '
             [
               $models[] as $model |
               $dockerfile_archs[] as $da |
               {
                 model_id: $model.model_id,
                 requires_token: $model.requires_token,
-                base_tag: ($model.tag_suffix + $da.tag_variant),
-                tag_suffix: ($model.tag_suffix + $da.tag_variant + "-" + $da.arch),
-                base_image: ($registry + "/" + $image_name + ":" + $da.base_tag + "-" + $da.arch + "-latest"),
+                base_tag: ($model.tag_suffix + $da.tag_variant + $branch_suffix),
+                tag_suffix: ($model.tag_suffix + $da.tag_variant + "-" + $da.arch + $branch_suffix),
+                base_image: ($registry + "/" + $image_name + ":" + $da.base_tag + "-" + $da.arch + $branch_suffix + "-latest"),
                 platform: $da.platform,
                 runs_on: $da.runs_on,
                 arch: $da.arch
@@ -112,11 +159,13 @@ jobs:
           echo "model_matrix=${MODEL_MATRIX}" >> $GITHUB_OUTPUT
 
           # Manifests for pt25 (multi-arch) - default dockerfile is single-arch so no manifest needed
-          MANIFESTS=$(jq -c -n --argjson models "$MODELS" '
+          MANIFESTS=$(jq -c -n \
+            --argjson models "$MODELS" \
+            --arg branch_suffix "$BRANCH_SUFFIX" '
             [
               $models[] as $model |
               {
-                base_tag: ($model.tag_suffix + "-pt25")
+                base_tag: ($model.tag_suffix + "-pt25" + $branch_suffix)
               }
             ]
           ')
@@ -137,8 +186,9 @@ jobs:
           fi
 
   # Stage 1: Build base images (4 builds: 2 Dockerfiles × 2 architectures)
+  # This runs on push to any branch (when should_build_all is true)
   build-base-images:
-    if: github.event_name == 'push'
+    if: needs.setup.outputs.should_build_all == 'true'
     needs: setup
     strategy:
       matrix:
@@ -154,7 +204,7 @@ jobs:
 
   # Stage 2: Build model images (32 builds, but fast - just downloads models)
   build-model-images:
-    if: github.event_name == 'push'
+    if: needs.setup.outputs.should_build_all == 'true'
     needs: [setup, build-base-images]
     strategy:
       matrix:
@@ -174,7 +224,7 @@ jobs:
 
   # Stage 3: Create multi-arch manifests after all model builds complete
   create-manifests:
-    if: github.event_name == 'push'
+    if: needs.setup.outputs.should_build_all == 'true'
     needs: [setup, build-model-images]
     runs-on: ubuntu-latest
     permissions:
@@ -197,7 +247,7 @@ jobs:
           BASE_TAG: ${{ matrix.manifest.base_tag }}
           DATE_TAG: ${{ needs.setup.outputs.date_tag }}
         run: |
-          IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}"
+          IMAGE="${{ env.REGISTRY }}/${{ needs.setup.outputs.image_name_lower }}"
 
           # Create manifest for -latest tag
           docker manifest create ${IMAGE}:${BASE_TAG}-latest \
@@ -230,6 +280,6 @@ jobs:
       tag_suffix: ${{ fromJson(needs.setup.outputs.custom_model).tag_suffix }}
       date_tag: ${{ needs.setup.outputs.date_tag }}
       requires_token: ${{ fromJson(needs.setup.outputs.custom_model).requires_token }}
-      base_image: ghcr.io/${{ github.repository }}:base-amd64-latest
+      base_image: ghcr.io/${{ needs.setup.outputs.image_name_lower }}:base-amd64${{ needs.setup.outputs.branch_suffix }}-latest
     secrets:
       hf_token: ${{ secrets.HF_TOKEN }}
