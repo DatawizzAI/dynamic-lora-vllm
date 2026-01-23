@@ -270,16 +270,17 @@ jobs:
           echo "- **Multi-arch Tags:** ${{ matrix.manifest.base_tag }}-latest, ${{ matrix.manifest.base_tag }}-${{ needs.setup.outputs.date_tag }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Architectures:** amd64, arm64" >> $GITHUB_STEP_SUMMARY
 
-  # Build custom model (only on manual dispatch) - uses default base image
+  # Build custom model (only on manual dispatch) - uses main branch base image (always exists)
   build-custom:
     if: github.event_name == 'workflow_dispatch' && inputs.custom_model != ''
     needs: setup
     uses: ./.github/workflows/build-single-image.yml
     with:
       model_id: ${{ fromJson(needs.setup.outputs.custom_model).model_id }}
-      tag_suffix: ${{ fromJson(needs.setup.outputs.custom_model).tag_suffix }}
+      tag_suffix: ${{ fromJson(needs.setup.outputs.custom_model).tag_suffix }}${{ needs.setup.outputs.branch_suffix }}
       date_tag: ${{ needs.setup.outputs.date_tag }}
       requires_token: ${{ fromJson(needs.setup.outputs.custom_model).requires_token }}
-      base_image: ghcr.io/${{ needs.setup.outputs.image_name_lower }}:base-amd64${{ needs.setup.outputs.branch_suffix }}-latest
+      # Always use main branch base image for custom builds (it's guaranteed to exist)
+      base_image: ghcr.io/${{ needs.setup.outputs.image_name_lower }}:base-amd64-latest
     secrets:
       hf_token: ${{ secrets.HF_TOKEN }}
