@@ -3,21 +3,17 @@ set -e
 
 echo "🚀 Setting up Dynamic LoRA vLLM development environment..."
 
-# PyTorch 2.5 + deps: same as production Dockerfile (24.10 base)
-echo "🔥 Installing PyTorch 2.5 (match production 24.10)..."
-uv pip install --system torch==2.5.0 torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
+# Install PyTorch with CUDA support first
+echo "🔥 Installing PyTorch with CUDA support..."
+uv pip install --user torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
 
-echo "📦 Installing Python dependencies (from requirements-dev.txt)..."
-uv pip install --system -r requirements-dev.txt
-
-# flash-attn: same wheel as production (no nvcc needed)
-echo "📦 Installing flash-attn (same wheel as Dockerfile)..."
-uv pip install --system "https://github.com/Dao-AILab/flash-attention/releases/download/v2.8.3/flash_attn-2.8.3+cu12torch2.5cxx11abiFALSE-cp310-cp310-linux_x86_64.whl"
-uv pip install --system flashinfer-cubin
+# Install Python dependencies from requirements.txt
+echo "📦 Installing Python dependencies..."
+uv pip install --user -r requirements.txt --break-system-packages
 
 # Install any additional development dependencies
 echo "📦 Installing additional development dependencies..."
-uv pip install --system python-dotenv rich click
+uv pip install --user python-dotenv rich click --break-system-packages
 
 # Install Claude Code CLI
 echo "🤖 Installing Claude Code..."

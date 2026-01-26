@@ -14,19 +14,20 @@ WORKDIR /app
 # Copy requirements first for better caching
 COPY requirements.txt .
 
+# Install uv for faster, reproducible installs
+RUN pip install --no-cache-dir uv
+
 # Install Python dependencies with NumPy compatibility fix
-RUN pip install --no-cache-dir "numpy==1.26.4"
+RUN uv pip install --system "numpy==1.26.4"
 
-# Install deps from requirements.txt (flash-attn is NOT in requirements.txt; we install it separately below).
-RUN pip install --no-cache-dir -r requirements.txt
-
-# Base 24.10 has PyTorch 2.5.x; use official flash-attn wheel built for torch2.5 to avoid undefined symbol at runtime.
-# Python 3.10 → cp310. If base image is 3.11, use the cp311 wheel from the same release.
-RUN pip install --no-cache-dir \
-    "https://github.com/Dao-AILab/flash-attention/releases/download/v2.8.3/flash_attn-2.8.3+cu12torch2.5cxx11abiFALSE-cp310-cp310-linux_x86_64.whl"
+# Install flash-attn separately with --no-build-isolation since it requires torch at build time
+RUN uv pip install --system "flash-attn>=2.7.1,<=2.8.0" --no-build-isolation
 
 # Add flashinfer to disable warning
-RUN pip install --no-cache-dir flashinfer-cubin
+RUN uv pip install --system flashinfer-cubin
+
+# Install remaining dependencies
+RUN uv pip install --system -r requirements.txt
 
 # Pre-download model if MODEL_ID is provided as build arg
 RUN if [ -n "$MODEL_ID" ] && [ "$MODEL_ID" != "" ]; then \

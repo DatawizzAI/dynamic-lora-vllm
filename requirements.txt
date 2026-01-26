@@ -1,4 +1,4 @@
-# vLLM and core dependencies (pinned from RunPod working worker 2026-01-26)
+# vLLM and core dependencies
 vllm==0.12.0
 # torch already included in base image
 transformers==4.57.3
@@ -24,6 +24,4 @@ ray==2.52.1
 # Optional: For better performance and compatibility
 accelerate==1.12.0
 safetensors==0.4.5
-
-# flash-attn is NOT here — it's installed separately in Dockerfile with a PyTorch-version-specific wheel.
-# See Dockerfile for details (flash-attn==2.8.3 for torch2.5).
+flash-attn>=2.7.1,<=2.8.0
