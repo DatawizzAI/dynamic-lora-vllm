@@ -1,27 +1,38 @@
 {
+	"name": "Dynamic LoRA vLLM Dev",
 	"dockerFile": "Dockerfile",
+	"context": "..",
 	"hostRequirements": {
 		"gpu": "optional"
 	},
 	"runArgs": [
 		"--gpus=all",
-		"--privileged"
-	],
-	"mounts": [
-		"source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=cached"
+		"--ipc=host",
+		"--ulimit", "memlock=-1",
+		"--ulimit", "stack=67108864"
 	],
 	"workspaceFolder": "/workspace",
-	"features": {
-		"ghcr.io/devcontainers/features/nvidia-cuda:1": {},
-		"ghcr.io/devcontainers/features/python:1": {},
-		"ghcr.io/raucha/devcontainer-features/pytorch:latest": {},
-		"ghcr.io/devcontainers/features/node:1": {},
-		"ghcr.io/devcontainers/features/docker-in-docker:2": {}
+	"workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=cached",
+	"containerEnv": {
+		"PYTHONPATH": "/workspace/src",
+		"HF_HOME": "/workspace/.cache/huggingface",
+		"CACHE_DIR": "/workspace/.cache/huggingface"
 	},
-	"updateContentCommand": "pip install --user -r requirements.txt --break-system-packages",
-	"build": {
-		"args": {
-			"PIP_BREAK_SYSTEM_PACKAGES": "1"
+	"customizations": {
+		"vscode": {
+			"extensions": [
+				"ms-python.python",
+				"ms-python.vscode-pylance",
+				"ms-python.black-formatter",
+				"ms-toolsai.jupyter",
+				"GitHub.copilot"
+			],
+			"settings": {
+				"python.defaultInterpreterPath": "/usr/bin/python3",
+				"python.formatting.provider": "black",
+				"python.linting.enabled": true,
+				"python.linting.flake8Enabled": true
+			}
 		}
 	},
 	"postCreateCommand": "bash ./.devcontainer/post-create.sh"
