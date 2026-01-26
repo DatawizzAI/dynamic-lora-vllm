@@ -16,9 +16,10 @@
 		"ghcr.io/devcontainers/features/python:1": {},
 		"ghcr.io/raucha/devcontainer-features/pytorch:latest": {},
 		"ghcr.io/devcontainers/features/node:1": {},
-		"ghcr.io/devcontainers/features/docker-in-docker:2": {}
+		"ghcr.io/devcontainers/features/docker-in-docker:2": {},
+		"ghcr.io/jsburckhardt/devcontainer-features/uv:1": {}
 	},
-	"updateContentCommand": "pip install --user -r requirements-dev.txt --break-system-packages",
+	"updateContentCommand": "uv pip install --system -r requirements-dev.txt",
 	"build": {
 		"args": {
 			"PIP_BREAK_SYSTEM_PACKAGES": "1"

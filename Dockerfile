@@ -15,20 +15,18 @@ WORKDIR /app
 COPY requirements.txt .
 
 # Install Python dependencies with NumPy compatibility fix
-RUN pip install --no-cache-dir "numpy<2.0,>=1.24.0"
+RUN pip install --no-cache-dir "numpy==1.26.4"
 
-# Install flash-attn separately with --no-build-isolation since it requires torch at build time
-# and torch is already available in the base image
-RUN pip install --no-cache-dir "flash-attn>=2.7.1,<=2.8.0" --no-build-isolation
+# Install deps from requirements.txt (flash-attn is NOT in requirements.txt; we install it separately below).
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Base 24.10 has PyTorch 2.5.x; use official flash-attn wheel built for torch2.5 to avoid undefined symbol at runtime.
+# Python 3.10 → cp310. If base image is 3.11, use the cp311 wheel from the same release.
+RUN pip install --no-cache-dir \
+    "https://github.com/Dao-AILab/flash-attention/releases/download/v2.8.3/flash_attn-2.8.3+cu12torch2.5cxx11abiFALSE-cp310-cp310-linux_x86_64.whl"
 
 # Add flashinfer to disable warning
-# WARNING 12-13 21:17:21 [topk_topp_sampler.py:59] FlashInfer is not available. Falling back to the PyTorch-native implementation of top-p & top-k sampling. For the best performance, please install FlashInfer.
-RUN pip install flashinfer-cubin
-
-# Install remaining dependencies
-# UV_HTTP_TIMEOUT increased for large package downloads
-# torch is marked as provided by base image via override
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir flashinfer-cubin
 
 # Pre-download model if MODEL_ID is provided as build arg
 RUN if [ -n "$MODEL_ID" ] && [ "$MODEL_ID" != "" ]; then \
