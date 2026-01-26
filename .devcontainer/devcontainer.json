@@ -13,13 +13,12 @@
 	"workspaceFolder": "/workspace",
 	"features": {
 		"ghcr.io/devcontainers/features/nvidia-cuda:1": {},
-		"ghcr.io/devcontainers/features/python:1": {},
-		"ghcr.io/raucha/devcontainer-features/pytorch:latest": {},
+		"ghcr.io/devcontainers/features/python:1": {"version": "3.10"},
 		"ghcr.io/devcontainers/features/node:1": {},
 		"ghcr.io/devcontainers/features/docker-in-docker:2": {},
 		"ghcr.io/jsburckhardt/devcontainer-features/uv:1": {}
 	},
-	"updateContentCommand": "uv pip install --system -r requirements-dev.txt",
+	"updateContentCommand": "sh -c 'uv pip install --system torch==2.5.0 torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121 && uv pip install --system -r requirements-dev.txt && uv pip install --system \"https://github.com/Dao-AILab/flash-attention/releases/download/v2.8.3/flash_attn-2.8.3+cu12torch2.5cxx11abiFALSE-cp310-cp310-linux_x86_64.whl\" && uv pip install --system flashinfer-cubin'",
 	"build": {
 		"args": {
 			"PIP_BREAK_SYSTEM_PACKAGES": "1"
