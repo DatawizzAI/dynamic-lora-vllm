@@ -18,11 +18,18 @@
 		"ghcr.io/devcontainers/features/docker-in-docker:2": {},
 		"ghcr.io/jsburckhardt/devcontainer-features/uv:1": {}
 	},
-	"updateContentCommand": "uv pip install --system torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121 --break-system-packages && uv pip install --system -r requirements.txt --break-system-packages",
+	"updateContentCommand": "cd /workspace && uv venv .venv && uv pip install --python .venv/bin/python torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121 && uv pip install --python .venv/bin/python -r requirements.txt",
 	"build": {
 		"args": {
 			"PIP_BREAK_SYSTEM_PACKAGES": "1"
 		}
 	},
-	"postCreateCommand": "bash ./.devcontainer/post-create.sh"
+	"postCreateCommand": "bash ./.devcontainer/post-create.sh",
+	"customizations": {
+		"vscode": {
+			"settings": {
+				"python.defaultInterpreterPath": "/workspace/.venv/bin/python"
+			}
+		}
+	}
 }

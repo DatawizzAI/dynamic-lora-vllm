@@ -3,17 +3,13 @@ set -e
 
 echo "🚀 Setting up Dynamic LoRA vLLM development environment..."
 
-# Install PyTorch with CUDA support first
-echo "🔥 Installing PyTorch with CUDA support..."
-uv pip install --system torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
+# Ensure venv is on PATH for new shells
+echo 'export PATH="/workspace/.venv/bin:$PATH"' >> ~/.bashrc
+PYTHON="/workspace/.venv/bin/python"
 
-# Install Python dependencies from requirements.txt
-echo "📦 Installing Python dependencies..."
-uv pip install --system -r requirements.txt --break-system-packages
-
-# Install any additional development dependencies
+# Install any additional development dependencies into venv
 echo "📦 Installing additional development dependencies..."
-uv pip install --system python-dotenv rich click --break-system-packages
+uv pip install --python "$PYTHON" python-dotenv rich click
 
 # Install Claude Code CLI
 echo "🤖 Installing Claude Code..."
