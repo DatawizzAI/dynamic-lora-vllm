@@ -13,12 +13,12 @@
 	"workspaceFolder": "/workspace",
 	"features": {
 		"ghcr.io/devcontainers/features/nvidia-cuda:1": {},
-		"ghcr.io/devcontainers/features/python:1": {},
+		"ghcr.io/devcontainers/features/python:1": { "version": "3.10" },
 		"ghcr.io/devcontainers/features/node:1": {},
 		"ghcr.io/devcontainers/features/docker-in-docker:2": {},
 		"ghcr.io/jsburckhardt/devcontainer-features/uv:1": {}
 	},
-	"updateContentCommand": "cd /workspace && uv venv .venv && uv pip install --python .venv/bin/python torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121 && uv pip install --python .venv/bin/python -r requirements.txt",
+	"updateContentCommand": "cd /workspace && uv venv .venv && uv pip install --python .venv/bin/python torch==2.9.0 torchvision==0.24.0 torchaudio==2.9.0 --index-url https://download.pytorch.org/whl/cu121 && uv pip install --python .venv/bin/python -r requirements.txt",
 	"build": {
 		"args": {
 			"PIP_BREAK_SYSTEM_PACKAGES": "1"

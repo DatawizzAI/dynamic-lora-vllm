@@ -24,4 +24,5 @@ ray==2.52.1
 # Optional: For better performance and compatibility
 accelerate==1.12.0
 safetensors==0.4.5
-flash-attn>=2.7.1,<=2.8.0
+# Pin to match RunPod worker (see pip-freeze-runpod-worker.txt, not in git)
+flash-attn==2.7.4.post1
