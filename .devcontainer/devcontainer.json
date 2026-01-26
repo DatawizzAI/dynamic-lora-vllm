@@ -13,7 +13,6 @@
 	"workspaceFolder": "/workspace",
 	"features": {
 		"ghcr.io/devcontainers/features/nvidia-cuda:1": {},
-		"ghcr.io/devcontainers/features/python:1": { "version": "3.10" },
 		"ghcr.io/devcontainers/features/node:1": {},
 		"ghcr.io/devcontainers/features/docker-in-docker:2": {},
 		"ghcr.io/jsburckhardt/devcontainer-features/uv:1": {}
