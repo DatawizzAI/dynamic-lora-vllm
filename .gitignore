@@ -253,6 +253,7 @@ config/secrets/
 # Local development files
 .local/
 local_config.py
+pip-freeze-runpod-worker.txt
 
 # Backup files
 *.bak

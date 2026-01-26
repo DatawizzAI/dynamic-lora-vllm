@@ -5,15 +5,15 @@ echo "🚀 Setting up Dynamic LoRA vLLM development environment..."
 
 # Install PyTorch with CUDA support first
 echo "🔥 Installing PyTorch with CUDA support..."
-uv pip install --user torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
+uv pip install --system torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
 
 # Install Python dependencies from requirements.txt
 echo "📦 Installing Python dependencies..."
-uv pip install --user -r requirements.txt --break-system-packages
+uv pip install --system -r requirements.txt --break-system-packages
 
 # Install any additional development dependencies
 echo "📦 Installing additional development dependencies..."
-uv pip install --user python-dotenv rich click --break-system-packages
+uv pip install --system python-dotenv rich click --break-system-packages
 
 # Install Claude Code CLI
 echo "🤖 Installing Claude Code..."

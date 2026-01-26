@@ -21,7 +21,7 @@ RUN pip install --no-cache-dir uv
 RUN uv pip install --system "numpy==1.26.4"
 
 # Install flash-attn separately with --no-build-isolation since it requires torch at build time
-RUN uv pip install --system "flash-attn>=2.7.1,<=2.8.0" --no-build-isolation
+RUN uv pip install --system "flash-attn==2.7.4.post1" --no-build-isolation
 
 # Add flashinfer to disable warning
 RUN uv pip install --system flashinfer-cubin
