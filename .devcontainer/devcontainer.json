@@ -13,6 +13,9 @@
 	],
 	"workspaceFolder": "/workspace",
 	"workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=cached",
+	"features": {
+		"ghcr.io/devcontainers/features/docker-in-docker:2": { "moby": false }
+	},
 	"containerEnv": {
 		"PYTHONPATH": "/workspace/src",
 		"HF_HOME": "/workspace/.cache/huggingface",
