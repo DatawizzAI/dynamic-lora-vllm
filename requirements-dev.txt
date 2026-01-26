@@ -1,0 +1,29 @@
+# Same as requirements.txt but without flash-attn (dev container has no nvcc).
+# Regenerate: grep -v '^flash-attn' requirements.txt > requirements-dev.txt
+
+# vLLM and core dependencies
+vllm>=0.12.0
+# torch already included in base image
+transformers>=4.36.0
+tokenizers>=0.15.0
+sentencepiece>=0.1.99
+
+# FastAPI and server dependencies
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+pydantic>=2.0.0
+aiohttp>=3.9.0
+
+# Hugging Face Hub integration
+huggingface-hub>=0.19.0
+datasets>=2.14.0
+
+# Additional utilities
+numpy<2.0,>=1.24.0
+packaging>=23.0
+psutil>=5.9.0
+ray>=2.7.0
+
+# Optional: For better performance and compatibility
+accelerate>=0.24.0
+safetensors>=0.4.0

@@ -7,9 +7,9 @@ echo "🚀 Setting up Dynamic LoRA vLLM development environment..."
 echo "🔥 Installing PyTorch with CUDA support..."
 pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
 
-# Install Python dependencies from requirements.txt
+# Install Python dependencies (skip flash-attn: dev container has no nvcc)
 echo "📦 Installing Python dependencies..."
-pip install -r requirements.txt
+pip install -r requirements-dev.txt
 
 # Install any additional development dependencies
 echo "📦 Installing additional development dependencies..."
