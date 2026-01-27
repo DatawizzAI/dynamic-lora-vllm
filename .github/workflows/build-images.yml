@@ -13,11 +13,11 @@ on:
         type: choice
         options:
           - base
-          - all-models
-          - custom-model
+          - build all registered models
+          - build custom model
         default: base
       custom_model:
-        description: 'Custom model ID (required if "custom-model" chosen)'
+        description: 'Custom model ID (required if "build custom model" chosen)'
         required: false
         type: string
       custom_tag:
@@ -46,6 +46,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       model_matrix: ${{ steps.matrix.outputs.model_matrix }}
+      build_matrix: ${{ steps.combined.outputs.build_matrix }}
       date_tag: ${{ steps.date.outputs.date }}
       custom_model: ${{ steps.custom.outputs.model }}
       base_image: ${{ steps.matrix.outputs.base_image }}
@@ -102,6 +103,43 @@ jobs:
             echo "model=" >> $GITHUB_OUTPUT
           fi
 
+      - name: Combine build matrix (all models or custom)
+        id: combined
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          # Use base-amd64-latest (always points to the latest base image)
+          BASE_IMAGE="${{ steps.matrix.outputs.base_image }}"
+          PLATFORM="${{ steps.matrix.outputs.platform }}"
+          if [ "${{ inputs.build_target }}" = "build all registered models" ]; then
+            # Use all registered models with latest base image
+            BUILD_MATRIX=$(jq -c -n \
+              --argjson models "${{ steps.matrix.outputs.model_matrix }}" \
+              --arg base_image "$BASE_IMAGE" '
+              $models | map(.base_image = $base_image)
+            ')
+            echo "build_matrix=${BUILD_MATRIX}" >> $GITHUB_OUTPUT
+          elif [ "${{ inputs.build_target }}" = "build custom model" ] && [ -n "${{ steps.custom.outputs.model }}" ]; then
+            # Use custom model only with latest base image
+            CUSTOM='${{ steps.custom.outputs.model }}'
+            BUILD_MATRIX=$(jq -c -n \
+              --argjson custom "$CUSTOM" \
+              --arg base_image "$BASE_IMAGE" \
+              --arg platform "$PLATFORM" '
+              [
+                {
+                  model_id: $custom.model_id,
+                  requires_token: $custom.requires_token,
+                  tag_suffix: $custom.tag_suffix,
+                  base_image: $base_image,
+                  platform: $platform
+                }
+              ]
+            ')
+            echo "build_matrix=${BUILD_MATRIX}" >> $GITHUB_OUTPUT
+          else
+            echo "build_matrix=[]" >> $GITHUB_OUTPUT
+          fi
+
   # Stage 1: Build base image. Auto: push/PR. Manual: when dropdown = base.
   build-base-inline:
     if: github.event_name == 'push' || github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && inputs.build_target == 'base')
@@ -149,13 +187,13 @@ jobs:
           pull: true
           provenance: false
 
-  # Stage 2: Build all registered model images. Manual only when dropdown = all-models.
-  build-model-images:
-    if: github.event_name == 'workflow_dispatch' && inputs.build_target == 'all-models'
+  # Stage 2: Build model images (all registered or custom). Manual only.
+  build-model:
+    if: github.event_name == 'workflow_dispatch' && (inputs.build_target == 'build all registered models' || (inputs.build_target == 'build custom model' && inputs.custom_model != ''))
     needs: setup
     strategy:
       matrix:
-        build: ${{ fromJson(needs.setup.outputs.model_matrix) }}
+        build: ${{ fromJson(needs.setup.outputs.build_matrix) }}
       fail-fast: false
     uses: ./.github/workflows/build-single-image.yml
     with:
@@ -165,19 +203,5 @@ jobs:
       requires_token: ${{ matrix.build.requires_token }}
       base_image: ${{ matrix.build.base_image }}
       platform: ${{ matrix.build.platform }}
-    secrets:
-      hf_token: ${{ secrets.HF_TOKEN }}
-
-  build-custom-model:
-    if: github.event_name == 'workflow_dispatch' && inputs.build_target == 'custom-model' && inputs.custom_model != ''
-    needs: setup
-    uses: ./.github/workflows/build-single-image.yml
-    with:
-      model_id: ${{ fromJson(needs.setup.outputs.custom_model).model_id }}
-      tag_suffix: ${{ fromJson(needs.setup.outputs.custom_model).tag_suffix }}
-      date_tag: ${{ needs.setup.outputs.date_tag }}
-      requires_token: ${{ fromJson(needs.setup.outputs.custom_model).requires_token }}
-      base_image: ${{ needs.setup.outputs.base_image }}
-      platform: ${{ needs.setup.outputs.platform }}
     secrets:
       hf_token: ${{ secrets.HF_TOKEN }}
