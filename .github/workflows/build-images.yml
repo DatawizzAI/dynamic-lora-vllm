@@ -150,26 +150,6 @@ jobs:
       contents: read
       packages: write
     steps:
-      - name: Debug - Check initial disk and runner info
-        run: |
-          echo "=== Runner Info ==="
-          echo "Runner name: $RUNNER_NAME"
-          echo "Runner OS: $RUNNER_OS"
-          echo "Runner arch: $RUNNER_ARCH"
-          echo ""
-          echo "=== Initial Disk Space ==="
-          df -h
-          echo ""
-          echo "=== Large directories in /home/runner ==="
-          du -sh /home/runner/* 2>/dev/null | sort -hr | head -20 || true
-          echo ""
-          echo "=== Large directories in root ==="
-          du -sh /* 2>/dev/null | sort -hr | head -20 || true
-          echo ""
-          echo "=== Check for cached runner ==="
-          ls -la /home/runner/actions-runner/ 2>/dev/null || echo "No actions-runner dir"
-          ls -la /home/runner/actions-runner/cached/ 2>/dev/null || echo "No cached dir"
-
       - name: Checkout repository
         uses: actions/checkout@v4
 
@@ -178,18 +158,11 @@ jobs:
 
       - name: Clean up disk space
         run: |
-          echo "=== Disk space BEFORE cleanup ==="
-          df -h
-          echo ""
-          echo "=== Cleaning up... ==="
           sudo rm -rf /usr/share/dotnet || true
           sudo rm -rf /usr/local/lib/android || true
           sudo rm -rf /opt/ghc || true
           sudo rm -rf /opt/hostedtoolcache/CodeQL || true
           docker system prune -af --volumes || true
-          echo ""
-          echo "=== Disk space AFTER cleanup ==="
-          df -h
       - name: Log in to Container Registry
         if: github.event_name != 'pull_request'
         uses: docker/login-action@v3
