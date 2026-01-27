@@ -1,4 +1,6 @@
-FROM nvcr.io/nvidia/pytorch:24.10-py3
+# NGC PyTorch 25.10 = torch 2.9.0, matching pip-freeze-runpod-worker.txt
+# See: https://docs.nvidia.com/deeplearning/frameworks/pytorch-release-notes/rel-25-11.html
+FROM nvcr.io/nvidia/pytorch:25.10-py3
 
 # Build arguments for optional model pre-download and HF authentication
 ARG HF_TOKEN=""
@@ -14,20 +16,17 @@ WORKDIR /app
 # Copy requirements first for better caching
 COPY requirements.txt .
 
-# Install Python dependencies with NumPy compatibility fix
-RUN pip install --no-cache-dir "numpy<2.0,>=1.24.0"
-
 # Install flash-attn separately with --no-build-isolation since it requires torch at build time
 # and torch is already available in the base image
-RUN pip install --no-cache-dir "flash-attn>=2.7.1,<=2.8.0" --no-build-isolation
+# Version pinned to match RunPod worker (pip-freeze-runpod-worker.txt)
+RUN pip install --no-cache-dir flash-attn==2.7.4.post1 --no-build-isolation
 
-# Add flashinfer to disable warning
-# WARNING 12-13 21:17:21 [topk_topp_sampler.py:59] FlashInfer is not available. Falling back to the PyTorch-native implementation of top-p & top-k sampling. For the best performance, please install FlashInfer.
-RUN pip install flashinfer-cubin
+# Add flashinfer for vLLM top-p & top-k sampling performance
+# Version pinned to match RunPod worker
+RUN pip install --no-cache-dir flashinfer-python==0.5.3
 
 # Install remaining dependencies
-# UV_HTTP_TIMEOUT increased for large package downloads
-# torch is marked as provided by base image via override
+# torch 2.9.0 is provided by base image (NGC 25.10), versions pinned to match RunPod worker
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Pre-download model if MODEL_ID is provided as build arg
