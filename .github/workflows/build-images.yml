@@ -7,17 +7,26 @@ on:
     branches: [main]
   workflow_dispatch:
     inputs:
+      build_target:
+        description: 'What to build'
+        required: true
+        type: choice
+        options:
+          - base
+          - all-models
+          - custom-model
+        default: base
       custom_model:
-        description: 'Custom model ID to build (optional)'
+        description: 'Custom model ID (required if "custom-model" chosen)'
         required: false
         type: string
       custom_tag:
-        description: 'Custom tag suffix'
+        description: 'Tag suffix for custom model'
         required: false
         type: string
         default: 'custom'
       hf_token_required:
-        description: 'Does this model require HF token?'
+        description: 'Custom model requires HF token?'
         required: false
         type: boolean
         default: false
@@ -93,9 +102,9 @@ jobs:
             echo "model=" >> $GITHUB_OUTPUT
           fi
 
-  # Stage 1: Build base image only. Auto: push/PR trigger, no model images. Manual: model images only (base must exist).
+  # Stage 1: Build base image. Auto: push/PR. Manual: when dropdown = base.
   build-base-inline:
-    if: github.event_name == 'push' || github.event_name == 'pull_request'
+    if: github.event_name == 'push' || github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && inputs.build_target == 'base')
     needs: setup
     runs-on: ubuntu-latest
     timeout-minutes: 120
@@ -127,7 +136,7 @@ jobs:
         with:
           context: .
           file: Dockerfile
-          push: ${{ github.event_name != 'pull_request' }}
+          push: ${{ github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.build_target == 'base') }}
           tags: ${{ steps.meta.outputs.tags }}
           platforms: ${{ env.PLATFORM }}
           cache-from: type=gha
@@ -135,9 +144,9 @@ jobs:
           provenance: false
           attest: false
 
-  # Stage 2: Build all registered model images. Manual only (workflow_dispatch, no custom_model).
+  # Stage 2: Build all registered model images. Manual only when dropdown = all-models.
   build-model-images:
-    if: github.event_name == 'workflow_dispatch' && (inputs.custom_model == '' || inputs.custom_model == null)
+    if: github.event_name == 'workflow_dispatch' && inputs.build_target == 'all-models'
     needs: setup
     strategy:
       matrix:
@@ -155,7 +164,7 @@ jobs:
       hf_token: ${{ secrets.HF_TOKEN }}
 
   build-custom-model:
-    if: github.event_name == 'workflow_dispatch' && inputs.custom_model != ''
+    if: github.event_name == 'workflow_dispatch' && inputs.build_target == 'custom-model' && inputs.custom_model != ''
     needs: setup
     uses: ./.github/workflows/build-single-image.yml
     with:
