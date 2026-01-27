@@ -215,6 +215,8 @@ jobs:
           platforms: ${{ env.PLATFORM }}
           pull: true
           provenance: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
   # Stage 2: Build model images (all registered or custom). Manual only.
   build-model:
