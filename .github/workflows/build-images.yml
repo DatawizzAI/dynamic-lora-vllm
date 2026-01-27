@@ -40,6 +40,7 @@ jobs:
       date_tag: ${{ steps.date.outputs.date }}
       custom_model: ${{ steps.custom.outputs.model }}
       base_image: ${{ steps.matrix.outputs.base_image }}
+      platform: ${{ steps.matrix.outputs.platform }}
     steps:
       - name: Set date tag
         id: date
@@ -50,6 +51,7 @@ jobs:
         run: |
           IMAGE_NAME_LOWER=$(echo "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}" | tr '[:upper:]' '[:lower:]')
           echo "base_image=${IMAGE_NAME_LOWER}:${{ env.BASE_TAG_SUFFIX }}-latest" >> $GITHUB_OUTPUT
+          echo "platform=linux/amd64" >> $GITHUB_OUTPUT
           MODELS='[
             {"model_id":"google/gemma-3-270m-it","requires_token":true,"tag_suffix":"gemma-3-270m-it"},
             {"model_id":"google/gemma-3-4b-it","requires_token":true,"tag_suffix":"gemma-3-4b-it"},
@@ -64,14 +66,16 @@ jobs:
           BASE_IMAGE="${IMAGE_NAME_LOWER}:${{ env.BASE_TAG_SUFFIX }}-latest"
           MODEL_MATRIX=$(jq -c -n \
             --argjson models "$MODELS" \
-            --arg base_image "$BASE_IMAGE" '
+            --arg base_image "$BASE_IMAGE" \
+            --arg platform "linux/amd64" '
             [
               $models[] |
               {
                 model_id: .model_id,
                 requires_token: .requires_token,
                 tag_suffix: .tag_suffix,
-                base_image: $base_image
+                base_image: $base_image,
+                platform: $platform
               }
             ]
           ')
@@ -142,7 +146,7 @@ jobs:
       date_tag: ${{ needs.setup.outputs.date_tag }}
       requires_token: ${{ matrix.build.requires_token }}
       base_image: ${{ matrix.build.base_image }}
-      platform: ${{ env.PLATFORM }}
+      platform: ${{ matrix.build.platform }}
     secrets:
       hf_token: ${{ secrets.HF_TOKEN }}
 
@@ -156,6 +160,6 @@ jobs:
       date_tag: ${{ needs.setup.outputs.date_tag }}
       requires_token: ${{ fromJson(needs.setup.outputs.custom_model).requires_token }}
       base_image: ${{ needs.setup.outputs.base_image }}
-      platform: ${{ env.PLATFORM }}
+      platform: ${{ needs.setup.outputs.platform }}
     secrets:
       hf_token: ${{ secrets.HF_TOKEN }}
