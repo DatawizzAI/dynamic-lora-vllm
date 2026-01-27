@@ -29,6 +29,10 @@ RUN pip install --no-cache-dir flashinfer-python==0.5.3
 # torch 2.9.0 is provided by base image (NGC 25.10), versions pinned to match RunPod worker
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Uninstall torchao: transformers 4.57 imports it but NGC image has incompatible torchao layout;
+# with torchao removed, transformers skips the torchao quantizer and runs without it.
+RUN pip uninstall -y torchao || true
+
 # Pre-download model if MODEL_ID is provided as build arg
 RUN if [ -n "$MODEL_ID" ] && [ "$MODEL_ID" != "" ]; then \
         echo "Pre-downloading model: $MODEL_ID"; \
