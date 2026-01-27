@@ -142,7 +142,6 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
           provenance: false
-          attest: false
 
   # Stage 2: Build all registered model images. Manual only when dropdown = all-models.
   build-model-images:
