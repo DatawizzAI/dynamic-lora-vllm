@@ -93,10 +93,12 @@ jobs:
             echo "model=" >> $GITHUB_OUTPUT
           fi
 
-  # Stage 1: Build base image from Dockerfile (no model). PR: build only; push: build + push.
+  # Stage 1: Build base image only. Auto: push/PR trigger, no model images. Manual: model images only (base must exist).
   build-base-inline:
+    if: github.event_name == 'push' || github.event_name == 'pull_request'
     needs: setup
     runs-on: ubuntu-latest
+    timeout-minutes: 120
     permissions:
       contents: read
       packages: write
@@ -130,11 +132,13 @@ jobs:
           platforms: ${{ env.PLATFORM }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          provenance: false
+          attest: false
 
-  # Stage 2: Build model images (Dockerfile.model on top of base). Only on push to main (and optional workflow_dispatch custom).
+  # Stage 2: Build all registered model images. Manual only (workflow_dispatch, no custom_model).
   build-model-images:
-    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.custom_model == '')
-    needs: [setup, build-base-inline]
+    if: github.event_name == 'workflow_dispatch' && (inputs.custom_model == '' || inputs.custom_model == null)
+    needs: setup
     strategy:
       matrix:
         build: ${{ fromJson(needs.setup.outputs.model_matrix) }}
@@ -152,7 +156,7 @@ jobs:
 
   build-custom-model:
     if: github.event_name == 'workflow_dispatch' && inputs.custom_model != ''
-    needs: [setup, build-base-inline]
+    needs: setup
     uses: ./.github/workflows/build-single-image.yml
     with:
       model_id: ${{ fromJson(needs.setup.outputs.custom_model).model_id }}
