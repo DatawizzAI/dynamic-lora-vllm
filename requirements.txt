@@ -1,9 +1,9 @@
 # Versions pinned from pip-freeze-runpod-worker.txt (RunPod worker 2026-01-26, Python 3.10, torch 2.9.0).
 # Use these versions for reproducible installs matching production RunPod env.
 
-# vLLM and core dependencies
-vllm==0.12.0
-# torch/torchvision/torchaudio provided by base image (torch==2.9.0)
+# Core dependencies
+# NOTE: vllm==0.12.0 is installed separately in Dockerfile BEFORE this file (it installs torch as dependency)
+# torch/torchvision/torchaudio provided by vLLM (torch==2.9.0)
 transformers==4.57.3
 tokenizers==0.22.1
 sentencepiece==0.2.1
@@ -35,4 +35,4 @@ ray==2.52.1
 # Optional: performance and compatibility (match RunPod worker)
 accelerate==1.12.0
 safetensors==0.4.5
-flash-attn==2.7.4.post1
+# flash-attn==2.7.4.post1 installed separately in Dockerfile with --no-build-isolation

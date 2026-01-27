@@ -1,6 +1,5 @@
-# NGC PyTorch 25.10 = torch 2.9.0, matching pip-freeze-runpod-worker.txt
-# See: https://docs.nvidia.com/deeplearning/frameworks/pytorch-release-notes/rel-25-11.html
-FROM nvcr.io/nvidia/pytorch:25.10-py3
+FROM nvcr.io/nvidia/pytorch:25.10-py3 
+# Accually, torch will be reinstall by vllm,  we can have a lighter base image, like python:3.12 or something but need more test.
 
 # Build arguments for optional model pre-download and HF authentication
 ARG HF_TOKEN=""
@@ -10,24 +9,34 @@ ARG MODEL_ID=""
 ENV PYTHONUNBUFFERED=1
 ENV DEBIAN_FRONTEND=noninteractive
 
+# Install Python and build essentials
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3 \
+    python3-pip \
+    python3-dev \
+    build-essential \
+    git \
+    && rm -rf /var/lib/apt/lists/* \
+    && ln -sf /usr/bin/python3 /usr/bin/python
+
 # Set working directory
 WORKDIR /app
 
 # Copy requirements first for better caching
 COPY requirements.txt .
 
-# Install flash-attn separately with --no-build-isolation since it requires torch at build time
-# and torch is already available in the base image
-# Version pinned to match RunPod worker (pip-freeze-runpod-worker.txt)
-RUN pip install --no-cache-dir flash-attn==2.7.4.post1 --no-build-isolation
+# Install vLLM first (this installs torch as dependency)
+# Versions pinned to match RunPod worker (pip-freeze-runpod-worker.txt)
+RUN pip install --no-cache-dir --break-system-packages vllm==0.12.0
+
+# Install flash-attn with --no-build-isolation (torch now available from vLLM)
+RUN pip install --no-cache-dir --break-system-packages flash-attn==2.7.4.post1 --no-build-isolation
 
 # Add flashinfer for vLLM top-p & top-k sampling performance
-# Version pinned to match RunPod worker
-RUN pip install --no-cache-dir flashinfer-python==0.5.3
+RUN pip install --no-cache-dir --break-system-packages flashinfer-python==0.5.3
 
-# Install remaining dependencies
-# torch 2.9.0 is provided by base image (NGC 25.10), versions pinned to match RunPod worker
-RUN pip install --no-cache-dir -r requirements.txt
+# Install remaining dependencies (torch already installed by vLLM)
+RUN pip install --no-cache-dir --break-system-packages -r requirements.txt
 
 # Pre-download model if MODEL_ID is provided as build arg
 RUN if [ -n "$MODEL_ID" ] && [ "$MODEL_ID" != "" ]; then \

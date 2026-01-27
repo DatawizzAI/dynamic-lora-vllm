@@ -35,7 +35,6 @@ jobs:
     outputs:
       base_matrix: ${{ steps.matrix.outputs.base_matrix }}
       model_matrix: ${{ steps.matrix.outputs.model_matrix }}
-      manifests: ${{ steps.matrix.outputs.manifests }}
       custom_model: ${{ steps.custom.outputs.model }}
       date_tag: ${{ steps.date.outputs.date }}
     steps:
@@ -51,7 +50,8 @@ jobs:
         run: |
           # Lowercase the image name (Docker requires lowercase)
           IMAGE_NAME_LOWER=$(echo "$IMAGE_NAME" | tr '[:upper:]' '[:lower:]')
-          # Define models, dockerfiles, and architectures
+          
+          # Define models to build
           MODELS='[
             {"model_id":"google/gemma-3-270m-it","requires_token":true,"tag_suffix":"gemma-3-270m-it"},
             {"model_id":"google/gemma-3-4b-it","requires_token":true,"tag_suffix":"gemma-3-4b-it"},
@@ -63,16 +63,13 @@ jobs:
             {"model_id":"Qwen/Qwen3-8B","requires_token":false,"tag_suffix":"qwen3-8b"},
             {"model_id":"Qwen/Qwen3-14B","requires_token":false,"tag_suffix":"qwen3-14b"}
           ]'
-          # Define dockerfile + architecture combinations
-          # Default Dockerfile: amd64 only
-          # PT25 Dockerfile: amd64 (pytorch base) and arm64 (nvidia vllm base)
+          
+          # Single Dockerfile, amd64 only (vLLM requires NVIDIA CUDA GPUs)
           DOCKERFILE_ARCHS='[
-            {"dockerfile":"Dockerfile","base_tag":"base","tag_variant":"","arch":"amd64","platform":"linux/amd64","runs_on":"ubuntu-latest-l"},
-            {"dockerfile":"Dockerfile.pt25","base_tag":"base-pt25","tag_variant":"-pt25","arch":"amd64","platform":"linux/amd64","runs_on":"ubuntu-latest-l"},
-            {"dockerfile":"Dockerfile.pt25-arm","base_tag":"base-pt25","tag_variant":"-pt25","arch":"arm64","platform":"linux/arm64","runs_on":"ubuntu-latest-l-arm"}
+            {"dockerfile":"Dockerfile","base_tag":"base","tag_variant":"","arch":"amd64","platform":"linux/amd64","runs_on":"ubuntu-latest-l"}
           ]'
 
-          # Base image matrix: 3 builds (1 for default + 2 for pt25)
+          # Base image matrix: single build
           BASE_MATRIX=$(jq -c -n --argjson dockerfile_archs "$DOCKERFILE_ARCHS" '
             [
               $dockerfile_archs[] |
@@ -87,8 +84,7 @@ jobs:
           ')
           echo "base_matrix=${BASE_MATRIX}" >> $GITHUB_OUTPUT
 
-          # Model image matrix: Models × Dockerfile/Arch combinations (24 builds)
-          # Each entry includes the base_image reference
+          # Model image matrix: Models × Dockerfile/Arch combinations
           MODEL_MATRIX=$(jq -c -n \
             --argjson models "$MODELS" \
             --argjson dockerfile_archs "$DOCKERFILE_ARCHS" \
@@ -111,17 +107,6 @@ jobs:
           ')
           echo "model_matrix=${MODEL_MATRIX}" >> $GITHUB_OUTPUT
 
-          # Manifests for pt25 (multi-arch) - default dockerfile is single-arch so no manifest needed
-          MANIFESTS=$(jq -c -n --argjson models "$MODELS" '
-            [
-              $models[] as $model |
-              {
-                base_tag: ($model.tag_suffix + "-pt25")
-              }
-            ]
-          ')
-          echo "manifests=${MANIFESTS}" >> $GITHUB_OUTPUT
-
       - name: Set custom model
         id: custom
         run: |
@@ -136,7 +121,7 @@ jobs:
             echo "model=" >> $GITHUB_OUTPUT
           fi
 
-  # Stage 1: Build base images (4 builds: 2 Dockerfiles × 2 architectures)
+  # Stage 1: Build base image (single amd64 build)
   build-base-images:
     if: github.event_name == 'push'
     needs: setup
@@ -152,7 +137,7 @@ jobs:
       runs_on: ${{ matrix.build.runs_on }}
       platform: ${{ matrix.build.platform }}
 
-  # Stage 2: Build model images (32 builds, but fast - just downloads models)
+  # Stage 2: Build model images (one per model, fast - just downloads models)
   build-model-images:
     if: github.event_name == 'push'
     needs: [setup, build-base-images]
@@ -172,55 +157,7 @@ jobs:
     secrets:
       hf_token: ${{ secrets.HF_TOKEN }}
 
-  # Stage 3: Create multi-arch manifests after all model builds complete
-  create-manifests:
-    if: github.event_name == 'push'
-    needs: [setup, build-model-images]
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-    strategy:
-      matrix:
-        manifest: ${{ fromJson(needs.setup.outputs.manifests) }}
-      fail-fast: false
-    steps:
-      - name: Log in to Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Create and push multi-arch manifest
-        env:
-          BASE_TAG: ${{ matrix.manifest.base_tag }}
-          DATE_TAG: ${{ needs.setup.outputs.date_tag }}
-        run: |
-          IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}"
-
-          # Create manifest for -latest tag
-          docker manifest create ${IMAGE}:${BASE_TAG}-latest \
-            ${IMAGE}:${BASE_TAG}-amd64-latest \
-            ${IMAGE}:${BASE_TAG}-arm64-latest
-          docker manifest push ${IMAGE}:${BASE_TAG}-latest
-
-          # Create manifest for date tag
-          docker manifest create ${IMAGE}:${BASE_TAG}-${DATE_TAG} \
-            ${IMAGE}:${BASE_TAG}-amd64-${DATE_TAG} \
-            ${IMAGE}:${BASE_TAG}-arm64-${DATE_TAG}
-          docker manifest push ${IMAGE}:${BASE_TAG}-${DATE_TAG}
-
-          echo "Created multi-arch manifests for ${BASE_TAG}"
-
-      - name: Generate manifest summary
-        run: |
-          echo "## Manifest Summary" >> $GITHUB_STEP_SUMMARY
-          echo "- **Base Tag:** ${{ matrix.manifest.base_tag }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Multi-arch Tags:** ${{ matrix.manifest.base_tag }}-latest, ${{ matrix.manifest.base_tag }}-${{ needs.setup.outputs.date_tag }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Architectures:** amd64, arm64" >> $GITHUB_STEP_SUMMARY
-
-  # Build custom model (only on manual dispatch) - uses default base image
+  # Build custom model (only on manual dispatch)
   build-custom:
     if: github.event_name == 'workflow_dispatch' && inputs.custom_model != ''
     needs: setup
