@@ -1,3 +1,4 @@
+# Builds model image from Dockerfile.model on top of pre-built base (Dockerfile).
 name: Build Single Model Image
 
 on:
@@ -22,17 +23,17 @@ on:
       base_image:
         required: true
         type: string
-        description: 'Base image to build on top of (e.g., ghcr.io/org/repo:base-amd64-latest)'
-      runs_on:
-        required: false
-        type: string
-        default: 'ubuntu-latest-l'
-        description: 'Runner to use for the build'
+        description: 'Base image (from Dockerfile) to build on top of'
       platform:
         required: false
         type: string
         default: 'linux/amd64'
         description: 'Docker platform to build for'
+      runs_on:
+        required: false
+        type: string
+        default: 'GPU_Runner'
+        description: 'Runner to use for the build'
     secrets:
       hf_token:
         required: false
@@ -48,7 +49,7 @@ jobs:
     permissions:
       contents: read
       packages: write
-    
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -73,9 +74,9 @@ jobs:
             type=raw,value=${{ inputs.tag_suffix }}-${{ inputs.date_tag }}
           labels: |
             org.opencontainers.image.title=Dynamic LoRA vLLM (${{ inputs.model_id }})
-            org.opencontainers.image.description=vLLM server with pre-downloaded ${{ inputs.model_id }} model
+            org.opencontainers.image.description=vLLM server with pre-downloaded ${{ inputs.model_id }}
 
-      - name: Build and push Docker image
+      - name: Build and push model image
         uses: docker/build-push-action@v5
         with:
           context: .
@@ -86,7 +87,7 @@ jobs:
           build-args: |
             BASE_IMAGE=${{ inputs.base_image }}
             MODEL_ID=${{ inputs.model_id }}
-            HF_TOKEN=${{ inputs.requires_token && secrets.hf_token || '' }}
+            HF_TOKEN=${{ secrets.hf_token }}
           platforms: ${{ inputs.platform }}
 
       - name: Generate build summary
@@ -94,9 +95,4 @@ jobs:
           echo "## Model Image Build Summary" >> $GITHUB_STEP_SUMMARY
           echo "- **Model:** ${{ inputs.model_id }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Base Image:** ${{ inputs.base_image }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Platform:** ${{ inputs.platform }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Runner:** ${{ inputs.runs_on }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Tags:** ${{ inputs.tag_suffix }}-latest, ${{ inputs.tag_suffix }}-${{ inputs.date_tag }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Registry:** ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **HF Token Required:** ${{ inputs.requires_token }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Build Time:** $(date)" >> $GITHUB_STEP_SUMMARY

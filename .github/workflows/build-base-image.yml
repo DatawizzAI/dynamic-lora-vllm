@@ -1,16 +1,13 @@
+# Reusable: builds the single root Dockerfile only. Not called by build-images.yml (main CI inlines the build).
 name: Build Base Image
 
 on:
   workflow_call:
     inputs:
-      dockerfile:
-        required: true
-        type: string
-        description: 'Dockerfile to use for the build'
       tag_suffix:
         required: true
         type: string
-        description: 'Tag suffix for the base image (e.g., base, base-pt25)'
+        description: 'Tag suffix for the image (e.g., base-amd64)'
       date_tag:
         required: true
         type: string
@@ -18,7 +15,7 @@ on:
       runs_on:
         required: false
         type: string
-        default: 'ubuntu-latest-l'
+        default: 'GPU_Runner'
         description: 'Runner to use for the build'
       platform:
         required: false
@@ -61,13 +58,13 @@ jobs:
             type=raw,value=${{ inputs.tag_suffix }}-${{ inputs.date_tag }}
           labels: |
             org.opencontainers.image.title=Dynamic LoRA vLLM Base Image
-            org.opencontainers.image.description=vLLM base image with all dependencies (no model)
+            org.opencontainers.image.description=vLLM base image with all dependencies
 
       - name: Build and push base image
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: ${{ inputs.dockerfile }}
+          file: Dockerfile
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
@@ -76,8 +73,6 @@ jobs:
       - name: Generate build summary
         run: |
           echo "## Base Image Build Summary" >> $GITHUB_STEP_SUMMARY
-          echo "- **Dockerfile:** ${{ inputs.dockerfile }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Dockerfile:** Dockerfile" >> $GITHUB_STEP_SUMMARY
           echo "- **Platform:** ${{ inputs.platform }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Runner:** ${{ inputs.runs_on }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Tags:** ${{ inputs.tag_suffix }}-latest, ${{ inputs.tag_suffix }}-${{ inputs.date_tag }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Build Time:** $(date)" >> $GITHUB_STEP_SUMMARY
