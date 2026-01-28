@@ -43,7 +43,7 @@ env:
 
 jobs:
   setup:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest  # Setup job only does calculations, doesn't need GPU
     outputs:
       model_matrix: ${{ steps.matrix.outputs.model_matrix }}
       build_matrix: ${{ steps.combined.outputs.build_matrix }}
@@ -144,7 +144,7 @@ jobs:
   build-base-inline:
     if: github.event_name == 'push' || github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && inputs.build_target == 'base')
     needs: setup
-    runs-on: ubuntu-latest
+    runs-on: GPU_Runner
     timeout-minutes: 120
     permissions:
       contents: read
@@ -207,5 +207,6 @@ jobs:
       requires_token: ${{ matrix.build.requires_token }}
       base_image: ${{ matrix.build.base_image }}
       platform: ${{ matrix.build.platform }}
+      runs_on: GPU_Runner
     secrets:
       hf_token: ${{ secrets.HF_TOKEN }}

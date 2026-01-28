@@ -15,7 +15,7 @@ on:
       runs_on:
         required: false
         type: string
-        default: 'ubuntu-latest'
+        default: 'GPU_Runner'
         description: 'Runner to use for the build'
       platform:
         required: false

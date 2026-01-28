@@ -29,6 +29,11 @@ on:
         type: string
         default: 'linux/amd64'
         description: 'Docker platform to build for'
+      runs_on:
+        required: false
+        type: string
+        default: 'GPU_Runner'
+        description: 'Runner to use for the build'
     secrets:
       hf_token:
         required: false
@@ -40,7 +45,7 @@ env:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ${{ inputs.runs_on }}
     permissions:
       contents: read
       packages: write
