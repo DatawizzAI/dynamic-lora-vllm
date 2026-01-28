@@ -105,12 +105,21 @@ jobs:
 
       - name: Combine build matrix (all models or custom)
         id: combined
-        if: github.event_name == 'workflow_dispatch'
         run: |
           # Use base-amd64-latest (always points to the latest base image)
           BASE_IMAGE="${{ steps.matrix.outputs.base_image }}"
           PLATFORM="${{ steps.matrix.outputs.platform }}"
-          if [ "${{ inputs.build_target }}" = "build all registered models" ]; then
+          
+          # For push/PR events, use all registered models
+          if [ "${{ github.event_name }}" = "push" ] || [ "${{ github.event_name }}" = "pull_request" ]; then
+            BUILD_MATRIX=$(jq -c -n \
+              --argjson models "${{ steps.matrix.outputs.model_matrix }}" \
+              --arg base_image "$BASE_IMAGE" '
+              $models | map(.base_image = $base_image)
+            ')
+            echo "build_matrix=${BUILD_MATRIX}" >> $GITHUB_OUTPUT
+          # For workflow_dispatch, check build_target
+          elif [ "${{ inputs.build_target }}" = "build all registered models" ]; then
             # Use all registered models with latest base image
             BUILD_MATRIX=$(jq -c -n \
               --argjson models "${{ steps.matrix.outputs.model_matrix }}" \
@@ -191,10 +200,30 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-  # Stage 2: Build model images (all registered or custom). Manual only.
+  # Stage 2a: Approval gate for building model images
+  # Uses environment protection rules to require manual approval before running
+  # On PR/push: waits for approval (won't auto-run)
+  # On workflow_dispatch with build models: skips approval (user already chose to build)
+  approve-build-models:
+    if: |
+      (github.event_name == 'push' || github.event_name == 'pull_request') &&
+      needs.setup.outputs.build_matrix != '[]'
+    needs: [setup, build-base-inline]
+    runs-on: ubuntu-latest
+    environment: build-models
+    steps:
+      - name: Approval granted
+        run: echo "Build models approved"
+
+  # Stage 2b: Build model images (all registered or custom).
+  # On PR/push: runs after approval (depends on build-base-inline and approve-build-models)
+  # On workflow_dispatch: runs directly if build_target is set to build models (only depends on setup)
   build-model:
-    if: github.event_name == 'workflow_dispatch' && (inputs.build_target == 'build all registered models' || (inputs.build_target == 'build custom model' && inputs.custom_model != ''))
-    needs: setup
+    if: |
+      always() && !cancelled() &&
+      ((github.event_name == 'workflow_dispatch' && (inputs.build_target == 'build all registered models' || (inputs.build_target == 'build custom model' && inputs.custom_model != ''))) ||
+      ((github.event_name == 'push' || github.event_name == 'pull_request') && needs.approve-build-models.result == 'success' && needs.build-base-inline.result == 'success'))
+    needs: [setup, build-base-inline, approve-build-models]
     strategy:
       matrix:
         build: ${{ fromJson(needs.setup.outputs.build_matrix) }}
