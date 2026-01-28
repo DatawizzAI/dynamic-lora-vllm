@@ -1,4 +1,4 @@
-# Manual workflow to build a single model image using an existing base image tag.
+# Manual workflow to build model image(s) using an existing base image tag.
 name: Build Model (Manual)
 
 on:
@@ -9,9 +9,18 @@ on:
         required: true
         type: string
         default: 'base-amd64-latest'
-      model_choice:
-        description: 'Select a registered model or choose "custom"'
+      build_target:
+        description: 'What to build'
         required: true
+        type: choice
+        options:
+          - single registered model
+          - all registered models
+          - custom model
+        default: 'single registered model'
+      model_choice:
+        description: 'Select model (only for "single registered model")'
+        required: false
         type: choice
         options:
           - gemma-3-270m-it
@@ -23,19 +32,18 @@ on:
           - qwen3-4b
           - qwen3-8b
           - qwen3-14b
-          - custom
         default: 'llama-3.1-8b'
       custom_model_id:
-        description: 'Custom HuggingFace model ID (required if "custom" chosen)'
+        description: 'Custom HuggingFace model ID (only for "custom model")'
         required: false
         type: string
       custom_tag_suffix:
-        description: 'Custom image tag suffix (required if "custom" chosen)'
+        description: 'Custom image tag suffix (only for "custom model")'
         required: false
         type: string
         default: 'custom'
       hf_token_required:
-        description: 'Model requires HuggingFace token?'
+        description: 'Custom model requires HuggingFace token?'
         required: false
         type: boolean
         default: false
@@ -49,89 +57,78 @@ env:
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
-  resolve-model:
+  setup:
     runs-on: ubuntu-latest
     outputs:
-      model_id: ${{ steps.resolve.outputs.model_id }}
-      tag_suffix: ${{ steps.resolve.outputs.tag_suffix }}
-      requires_token: ${{ steps.resolve.outputs.requires_token }}
-      base_image: ${{ steps.resolve.outputs.base_image }}
+      build_matrix: ${{ steps.matrix.outputs.build_matrix }}
+      date_tag: ${{ steps.date.outputs.date }}
     steps:
-      - name: Resolve model configuration
-        id: resolve
+      - name: Set date tag
+        id: date
+        run: echo "date=$(date +'%Y%m%d')" >> $GITHUB_OUTPUT
+
+      - name: Build matrix
+        id: matrix
         run: |
           IMAGE_NAME_LOWER=$(echo "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}" | tr '[:upper:]' '[:lower:]')
           BASE_IMAGE="${IMAGE_NAME_LOWER}:${{ inputs.base_image_tag }}"
-          echo "base_image=${BASE_IMAGE}" >> $GITHUB_OUTPUT
           
-          # Map model_choice to model_id and tag_suffix
-          case "${{ inputs.model_choice }}" in
-            "gemma-3-270m-it")
-              echo "model_id=google/gemma-3-270m-it" >> $GITHUB_OUTPUT
-              echo "tag_suffix=gemma-3-270m-it" >> $GITHUB_OUTPUT
-              echo "requires_token=true" >> $GITHUB_OUTPUT
+          # All registered models
+          ALL_MODELS='[
+            {"model_id":"google/gemma-3-270m-it","requires_token":true,"tag_suffix":"gemma-3-270m-it"},
+            {"model_id":"google/gemma-3-4b-it","requires_token":true,"tag_suffix":"gemma-3-4b-it"},
+            {"model_id":"meta-llama/Llama-3.2-1B-Instruct","requires_token":true,"tag_suffix":"llama-3.2-1b"},
+            {"model_id":"meta-llama/Llama-3.1-8B-Instruct","requires_token":true,"tag_suffix":"llama-3.1-8b"},
+            {"model_id":"hugging-quants/Meta-Llama-3.1-8B-Instruct-AWQ-INT4","requires_token":false,"tag_suffix":"llama-3.1-8b-awq"},
+            {"model_id":"Qwen/Qwen3-0.6B","requires_token":false,"tag_suffix":"qwen3-0.6b"},
+            {"model_id":"Qwen/Qwen3-4B","requires_token":false,"tag_suffix":"qwen3-4b"},
+            {"model_id":"Qwen/Qwen3-8B","requires_token":false,"tag_suffix":"qwen3-8b"},
+            {"model_id":"Qwen/Qwen3-14B","requires_token":false,"tag_suffix":"qwen3-14b"}
+          ]'
+          
+          case "${{ inputs.build_target }}" in
+            "all registered models")
+              BUILD_MATRIX=$(echo "$ALL_MODELS" | jq -c --arg base_image "$BASE_IMAGE" 'map(. + {base_image: $base_image, platform: "linux/amd64"})')
               ;;
-            "gemma-3-4b-it")
-              echo "model_id=google/gemma-3-4b-it" >> $GITHUB_OUTPUT
-              echo "tag_suffix=gemma-3-4b-it" >> $GITHUB_OUTPUT
-              echo "requires_token=true" >> $GITHUB_OUTPUT
+            "single registered model")
+              # Find the selected model from ALL_MODELS
+              SELECTED="${{ inputs.model_choice }}"
+              BUILD_MATRIX=$(echo "$ALL_MODELS" | jq -c --arg base_image "$BASE_IMAGE" --arg selected "$SELECTED" '
+                map(select(.tag_suffix == $selected)) | map(. + {base_image: $base_image, platform: "linux/amd64"})
+              ')
               ;;
-            "llama-3.2-1b")
-              echo "model_id=meta-llama/Llama-3.2-1B-Instruct" >> $GITHUB_OUTPUT
-              echo "tag_suffix=llama-3.2-1b" >> $GITHUB_OUTPUT
-              echo "requires_token=true" >> $GITHUB_OUTPUT
-              ;;
-            "llama-3.1-8b")
-              echo "model_id=meta-llama/Llama-3.1-8B-Instruct" >> $GITHUB_OUTPUT
-              echo "tag_suffix=llama-3.1-8b" >> $GITHUB_OUTPUT
-              echo "requires_token=true" >> $GITHUB_OUTPUT
-              ;;
-            "llama-3.1-8b-awq")
-              echo "model_id=hugging-quants/Meta-Llama-3.1-8B-Instruct-AWQ-INT4" >> $GITHUB_OUTPUT
-              echo "tag_suffix=llama-3.1-8b-awq" >> $GITHUB_OUTPUT
-              echo "requires_token=false" >> $GITHUB_OUTPUT
-              ;;
-            "qwen3-0.6b")
-              echo "model_id=Qwen/Qwen3-0.6B" >> $GITHUB_OUTPUT
-              echo "tag_suffix=qwen3-0.6b" >> $GITHUB_OUTPUT
-              echo "requires_token=false" >> $GITHUB_OUTPUT
-              ;;
-            "qwen3-4b")
-              echo "model_id=Qwen/Qwen3-4B" >> $GITHUB_OUTPUT
-              echo "tag_suffix=qwen3-4b" >> $GITHUB_OUTPUT
-              echo "requires_token=false" >> $GITHUB_OUTPUT
-              ;;
-            "qwen3-8b")
-              echo "model_id=Qwen/Qwen3-8B" >> $GITHUB_OUTPUT
-              echo "tag_suffix=qwen3-8b" >> $GITHUB_OUTPUT
-              echo "requires_token=false" >> $GITHUB_OUTPUT
-              ;;
-            "qwen3-14b")
-              echo "model_id=Qwen/Qwen3-14B" >> $GITHUB_OUTPUT
-              echo "tag_suffix=qwen3-14b" >> $GITHUB_OUTPUT
-              echo "requires_token=false" >> $GITHUB_OUTPUT
-              ;;
-            "custom")
+            "custom model")
               if [ -z "${{ inputs.custom_model_id }}" ]; then
-                echo "::error::Custom model ID is required when 'custom' is selected"
+                echo "::error::Custom model ID is required when 'custom model' is selected"
                 exit 1
               fi
-              echo "model_id=${{ inputs.custom_model_id }}" >> $GITHUB_OUTPUT
-              echo "tag_suffix=${{ inputs.custom_tag_suffix }}" >> $GITHUB_OUTPUT
-              echo "requires_token=${{ inputs.hf_token_required }}" >> $GITHUB_OUTPUT
+              BUILD_MATRIX=$(jq -c -n \
+                --arg model_id "${{ inputs.custom_model_id }}" \
+                --argjson requires_token "${{ inputs.hf_token_required }}" \
+                --arg tag_suffix "${{ inputs.custom_tag_suffix }}" \
+                --arg base_image "$BASE_IMAGE" \
+                '[{model_id: $model_id, requires_token: $requires_token, tag_suffix: $tag_suffix, base_image: $base_image, platform: "linux/amd64"}]')
               ;;
           esac
+          
+          echo "build_matrix=${BUILD_MATRIX}" >> $GITHUB_OUTPUT
+          echo "Build matrix: ${BUILD_MATRIX}"
 
   build-model:
-    needs: resolve-model
+    needs: setup
+    if: needs.setup.outputs.build_matrix != '[]'
+    strategy:
+      matrix:
+        build: ${{ fromJson(needs.setup.outputs.build_matrix) }}
+      fail-fast: false
     uses: ./.github/workflows/build-single-image.yml
     with:
-      model_id: ${{ needs.resolve-model.outputs.model_id }}
-      tag_suffix: ${{ needs.resolve-model.outputs.tag_suffix }}
-      date_tag: ${{ github.run_id }}
-      requires_token: ${{ needs.resolve-model.outputs.requires_token == 'true' }}
-      base_image: ${{ needs.resolve-model.outputs.base_image }}
-      platform: linux/amd64
+      model_id: ${{ matrix.build.model_id }}
+      tag_suffix: ${{ matrix.build.tag_suffix }}
+      date_tag: ${{ needs.setup.outputs.date_tag }}
+      requires_token: ${{ matrix.build.requires_token }}
+      base_image: ${{ matrix.build.base_image }}
+      platform: ${{ matrix.build.platform }}
       runs_on: GPU_Runner
     secrets:
       hf_token: ${{ secrets.HF_TOKEN }}
