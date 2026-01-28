@@ -105,6 +105,9 @@ jobs:
 
       - name: Combine build matrix (all models or custom)
         id: combined
+        env:
+          MODEL_MATRIX: ${{ steps.matrix.outputs.model_matrix }}
+          CUSTOM_MODEL: ${{ steps.custom.outputs.model }}
         run: |
           # Use base-amd64-latest (always points to the latest base image)
           BASE_IMAGE="${{ steps.matrix.outputs.base_image }}"
@@ -112,38 +115,16 @@ jobs:
           
           # For push/PR events, use all registered models
           if [ "${{ github.event_name }}" = "push" ] || [ "${{ github.event_name }}" = "pull_request" ]; then
-            BUILD_MATRIX=$(jq -c -n \
-              --argjson models "${{ steps.matrix.outputs.model_matrix }}" \
-              --arg base_image "$BASE_IMAGE" '
-              $models | map(.base_image = $base_image)
-            ')
+            BUILD_MATRIX=$(echo "$MODEL_MATRIX" | jq -c --arg base_image "$BASE_IMAGE" 'map(.base_image = $base_image)')
             echo "build_matrix=${BUILD_MATRIX}" >> $GITHUB_OUTPUT
           # For workflow_dispatch, check build_target
           elif [ "${{ inputs.build_target }}" = "build all registered models" ]; then
             # Use all registered models with latest base image
-            BUILD_MATRIX=$(jq -c -n \
-              --argjson models "${{ steps.matrix.outputs.model_matrix }}" \
-              --arg base_image "$BASE_IMAGE" '
-              $models | map(.base_image = $base_image)
-            ')
+            BUILD_MATRIX=$(echo "$MODEL_MATRIX" | jq -c --arg base_image "$BASE_IMAGE" 'map(.base_image = $base_image)')
             echo "build_matrix=${BUILD_MATRIX}" >> $GITHUB_OUTPUT
-          elif [ "${{ inputs.build_target }}" = "build custom model" ] && [ -n "${{ steps.custom.outputs.model }}" ]; then
+          elif [ "${{ inputs.build_target }}" = "build custom model" ] && [ -n "$CUSTOM_MODEL" ]; then
             # Use custom model only with latest base image
-            CUSTOM='${{ steps.custom.outputs.model }}'
-            BUILD_MATRIX=$(jq -c -n \
-              --argjson custom "$CUSTOM" \
-              --arg base_image "$BASE_IMAGE" \
-              --arg platform "$PLATFORM" '
-              [
-                {
-                  model_id: $custom.model_id,
-                  requires_token: $custom.requires_token,
-                  tag_suffix: $custom.tag_suffix,
-                  base_image: $base_image,
-                  platform: $platform
-                }
-              ]
-            ')
+            BUILD_MATRIX=$(echo "$CUSTOM_MODEL" | jq -c --arg base_image "$BASE_IMAGE" --arg platform "$PLATFORM" '[. + {base_image: $base_image, platform: $platform}]')
             echo "build_matrix=${BUILD_MATRIX}" >> $GITHUB_OUTPUT
           else
             echo "build_matrix=[]" >> $GITHUB_OUTPUT
@@ -185,7 +166,7 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
-            type=raw,value=${{ env.BASE_TAG_SUFFIX }}-latest
+            type=raw,value=${{ env.BASE_TAG_SUFFIX }}-latest,enable=${{ github.event_name != 'pull_request' }}
             type=raw,value=${{ env.BASE_TAG_SUFFIX }}-${{ needs.setup.outputs.date_tag }}
       - name: Build (and push on push to main) base image
         uses: docker/build-push-action@v5

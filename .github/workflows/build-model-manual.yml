@@ -1,0 +1,137 @@
+# Manual workflow to build a single model image using an existing base image tag.
+name: Build Model (Manual)
+
+on:
+  workflow_dispatch:
+    inputs:
+      base_image_tag:
+        description: 'Base image tag (e.g., base-amd64-20240128 or base-amd64-latest)'
+        required: true
+        type: string
+        default: 'base-amd64-latest'
+      model_choice:
+        description: 'Select a registered model or choose "custom"'
+        required: true
+        type: choice
+        options:
+          - gemma-3-270m-it
+          - gemma-3-4b-it
+          - llama-3.2-1b
+          - llama-3.1-8b
+          - llama-3.1-8b-awq
+          - qwen3-0.6b
+          - qwen3-4b
+          - qwen3-8b
+          - qwen3-14b
+          - custom
+        default: 'llama-3.1-8b'
+      custom_model_id:
+        description: 'Custom HuggingFace model ID (required if "custom" chosen)'
+        required: false
+        type: string
+      custom_tag_suffix:
+        description: 'Custom image tag suffix (required if "custom" chosen)'
+        required: false
+        type: string
+        default: 'custom'
+      hf_token_required:
+        description: 'Model requires HuggingFace token?'
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  resolve-model:
+    runs-on: ubuntu-latest
+    outputs:
+      model_id: ${{ steps.resolve.outputs.model_id }}
+      tag_suffix: ${{ steps.resolve.outputs.tag_suffix }}
+      requires_token: ${{ steps.resolve.outputs.requires_token }}
+      base_image: ${{ steps.resolve.outputs.base_image }}
+    steps:
+      - name: Resolve model configuration
+        id: resolve
+        run: |
+          IMAGE_NAME_LOWER=$(echo "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}" | tr '[:upper:]' '[:lower:]')
+          BASE_IMAGE="${IMAGE_NAME_LOWER}:${{ inputs.base_image_tag }}"
+          echo "base_image=${BASE_IMAGE}" >> $GITHUB_OUTPUT
+          
+          # Map model_choice to model_id and tag_suffix
+          case "${{ inputs.model_choice }}" in
+            "gemma-3-270m-it")
+              echo "model_id=google/gemma-3-270m-it" >> $GITHUB_OUTPUT
+              echo "tag_suffix=gemma-3-270m-it" >> $GITHUB_OUTPUT
+              echo "requires_token=true" >> $GITHUB_OUTPUT
+              ;;
+            "gemma-3-4b-it")
+              echo "model_id=google/gemma-3-4b-it" >> $GITHUB_OUTPUT
+              echo "tag_suffix=gemma-3-4b-it" >> $GITHUB_OUTPUT
+              echo "requires_token=true" >> $GITHUB_OUTPUT
+              ;;
+            "llama-3.2-1b")
+              echo "model_id=meta-llama/Llama-3.2-1B-Instruct" >> $GITHUB_OUTPUT
+              echo "tag_suffix=llama-3.2-1b" >> $GITHUB_OUTPUT
+              echo "requires_token=true" >> $GITHUB_OUTPUT
+              ;;
+            "llama-3.1-8b")
+              echo "model_id=meta-llama/Llama-3.1-8B-Instruct" >> $GITHUB_OUTPUT
+              echo "tag_suffix=llama-3.1-8b" >> $GITHUB_OUTPUT
+              echo "requires_token=true" >> $GITHUB_OUTPUT
+              ;;
+            "llama-3.1-8b-awq")
+              echo "model_id=hugging-quants/Meta-Llama-3.1-8B-Instruct-AWQ-INT4" >> $GITHUB_OUTPUT
+              echo "tag_suffix=llama-3.1-8b-awq" >> $GITHUB_OUTPUT
+              echo "requires_token=false" >> $GITHUB_OUTPUT
+              ;;
+            "qwen3-0.6b")
+              echo "model_id=Qwen/Qwen3-0.6B" >> $GITHUB_OUTPUT
+              echo "tag_suffix=qwen3-0.6b" >> $GITHUB_OUTPUT
+              echo "requires_token=false" >> $GITHUB_OUTPUT
+              ;;
+            "qwen3-4b")
+              echo "model_id=Qwen/Qwen3-4B" >> $GITHUB_OUTPUT
+              echo "tag_suffix=qwen3-4b" >> $GITHUB_OUTPUT
+              echo "requires_token=false" >> $GITHUB_OUTPUT
+              ;;
+            "qwen3-8b")
+              echo "model_id=Qwen/Qwen3-8B" >> $GITHUB_OUTPUT
+              echo "tag_suffix=qwen3-8b" >> $GITHUB_OUTPUT
+              echo "requires_token=false" >> $GITHUB_OUTPUT
+              ;;
+            "qwen3-14b")
+              echo "model_id=Qwen/Qwen3-14B" >> $GITHUB_OUTPUT
+              echo "tag_suffix=qwen3-14b" >> $GITHUB_OUTPUT
+              echo "requires_token=false" >> $GITHUB_OUTPUT
+              ;;
+            "custom")
+              if [ -z "${{ inputs.custom_model_id }}" ]; then
+                echo "::error::Custom model ID is required when 'custom' is selected"
+                exit 1
+              fi
+              echo "model_id=${{ inputs.custom_model_id }}" >> $GITHUB_OUTPUT
+              echo "tag_suffix=${{ inputs.custom_tag_suffix }}" >> $GITHUB_OUTPUT
+              echo "requires_token=${{ inputs.hf_token_required }}" >> $GITHUB_OUTPUT
+              ;;
+          esac
+
+  build-model:
+    needs: resolve-model
+    uses: ./.github/workflows/build-single-image.yml
+    with:
+      model_id: ${{ needs.resolve-model.outputs.model_id }}
+      tag_suffix: ${{ needs.resolve-model.outputs.tag_suffix }}
+      date_tag: ${{ github.run_id }}
+      requires_token: ${{ needs.resolve-model.outputs.requires_token == 'true' }}
+      base_image: ${{ needs.resolve-model.outputs.base_image }}
+      platform: linux/amd64
+      runs_on: GPU_Runner
+    secrets:
+      hf_token: ${{ secrets.HF_TOKEN }}
