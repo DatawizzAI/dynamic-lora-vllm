@@ -75,6 +75,37 @@ def test_chat_completions(base_url: str, model: str, message: str):
         return False
 
 
+def test_rerank(base_url: str, model: str, query: str, documents: list):
+    """Test the rerank endpoint (for pooling/reranker models)."""
+    url = f"{base_url}/v1/rerank"
+    
+    data = {
+        "model": model,
+        "query": query,
+        "documents": documents
+    }
+    
+    print(f"Testing rerank with model: {model}")
+    print(f"Query: {query}")
+    print(f"Documents: {len(documents)} docs")
+    
+    try:
+        response = requests.post(url, json=data, timeout=60)
+        response.raise_for_status()
+        
+        result = response.json()
+        print("Response:")
+        print(json.dumps(result, indent=2))
+        return True
+        
+    except requests.exceptions.RequestException as e:
+        print(f"Error: {e}")
+        if hasattr(e, 'response') and e.response is not None:
+            print(f"Response status: {e.response.status_code}")
+            print(f"Response body: {e.response.text}")
+        return False
+
+
 def test_health(base_url: str):
     """Test the health endpoint."""
     url = f"{base_url}/health"
@@ -95,6 +126,7 @@ def main():
     parser.add_argument("--model", default="meta-llama/Llama-3.2-1B-Instruct", help="Model to test with")
     parser.add_argument("--lora-model", help="LoRA adapter model to test with (optional)")
     parser.add_argument("--prompt", default="Hello, how are you?", help="Prompt to test with")
+    parser.add_argument("--test-rerank", action="store_true", help="Test /v1/rerank endpoint (use with reranker MODEL_ID)")
     
     args = parser.parse_args()
     
@@ -111,21 +143,35 @@ def main():
     print("\nWaiting 5 seconds for service to be ready...")
     time.sleep(5)
     
-    # Test base model with completions
-    print("\n2. Testing base model with completions...")
-    success = test_completions(args.base_url, args.model, args.prompt)
-    
-    if success:
-        print("\n3. Testing base model with chat completions...")
-        test_chat_completions(args.base_url, args.model, args.prompt)
-    
-    # Test LoRA model if provided
-    if args.lora_model:
-        print(f"\n4. Testing LoRA model ({args.lora_model}) with completions...")
-        test_completions(args.base_url, args.lora_model, args.prompt)
+    if args.test_rerank:
+        # Test rerank endpoint
+        print("\n2. Testing rerank endpoint...")
+        test_rerank(
+            args.base_url,
+            args.model,
+            query="What is the capital of France?",
+            documents=[
+                "Paris is the capital of France.",
+                "Berlin is the capital of Germany.",
+                "Madrid is the capital of Spain.",
+            ]
+        )
+    else:
+        # Test base model with completions
+        print("\n2. Testing base model with completions...")
+        success = test_completions(args.base_url, args.model, args.prompt)
         
-        print(f"\n5. Testing LoRA model ({args.lora_model}) with chat completions...")
-        test_chat_completions(args.base_url, args.lora_model, args.prompt)
+        if success:
+            print("\n3. Testing base model with chat completions...")
+            test_chat_completions(args.base_url, args.model, args.prompt)
+        
+        # Test LoRA model if provided
+        if args.lora_model:
+            print(f"\n4. Testing LoRA model ({args.lora_model}) with completions...")
+            test_completions(args.base_url, args.lora_model, args.prompt)
+            
+            print(f"\n5. Testing LoRA model ({args.lora_model}) with chat completions...")
+            test_chat_completions(args.base_url, args.lora_model, args.prompt)
     
     print("\nTesting completed!")
 

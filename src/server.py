@@ -1,3 +1,4 @@
+import json
 import os
 import asyncio
 import threading
@@ -11,6 +12,7 @@ from vllm.entrypoints.openai.cli_args import make_arg_parser, validate_parsed_se
 from vllm.engine.arg_utils import FlexibleArgumentParser
 from vllm.lora.resolver import LoRAResolverRegistry
 from hf_lora_resolver import HuggingFaceLoRAResolver
+from model_config import get_override_model_config
 
 
 class ServerState(Enum):
@@ -235,9 +237,14 @@ def main():
     else:
         print(f"Model will be downloaded at runtime to: {cache_dir}")
     
+    override_config = get_override_model_config(model_id)
     print(f"Starting health server on {host}:{health_port}")
     print(f"Starting vLLM server on {host}:{port} with model: {model_id}")
-    print(f"LoRA configuration: max_loras={max_loras}, max_lora_rank={max_lora_rank}, max_cpu_loras={max_cpu_loras}")
+    if override_config:
+        runner = override_config.get("runner")
+        print(f"Override config: runner={runner}, enable_lora={override_config.get('enable_lora', True)}, enable_tool_choice={override_config.get('enable_tool_choice', True)}")
+    else:
+        print(f"LoRA configuration: max_loras={max_loras}, max_lora_rank={max_lora_rank}, max_cpu_loras={max_cpu_loras}")
     
     # Print multimodal configuration if any limits are set
     if max_images_per_prompt > 0 or max_videos_per_prompt > 0 or max_audios_per_prompt > 0:
@@ -264,19 +271,30 @@ def main():
             description="vLLM OpenAI-Compatible RESTful API server.")
         parser = make_arg_parser(parser)
         
-        # Create CLI args list
+        # Build CLI args from override model config (config-driven; no task-specific branches)
+        override_config = get_override_model_config(model_id)
         cli_args = [
             "--model", model_id,
             "--host", host,
             "--port", str(port),
-            "--enable-lora",
-            "--max-loras", str(max_loras),
-            "--max-lora-rank", str(max_lora_rank),
-            "--max-cpu-loras", str(max_cpu_loras),
             "--trust-remote-code",
             "--gpu-memory-utilization", "0.8",
             "--download-dir", cache_dir
         ]
+        if override_config and override_config.get("runner"):
+            cli_args.extend(["--runner", override_config["runner"]])
+        if override_config and override_config.get("hf_overrides"):
+            cli_args.extend(["--hf-overrides", json.dumps(override_config["hf_overrides"])])
+        use_lora = override_config is None or override_config.get("enable_lora", True)
+        if use_lora:
+            cli_args.extend([
+                "--enable-lora",
+                "--max-loras", str(max_loras),
+                "--max-lora-rank", str(max_lora_rank),
+                "--max-cpu-loras", str(max_cpu_loras),
+            ])
+        if override_config:
+            print(f"Override config applied: runner={override_config.get('runner')}, enable_lora={use_lora}")
         
         if api_key:
             cli_args.extend(["--api-key", api_key])
@@ -291,27 +309,28 @@ def main():
             mm_limits["audio"] = max_audios_per_prompt
         
         if mm_limits:
-            import json
             cli_args.extend(["--limit-mm-per-prompt", json.dumps(mm_limits)])
         
-        # Add auto tool choice configuration
-        if enable_auto_tool_choice:
-            cli_args.append("--enable-auto-tool-choice")
-            
-            # Determine tool call parser
-            parser_to_use = tool_call_parser
-            if not parser_to_use:
-                parser_to_use = infer_tool_call_parser(model_id)
-            
-            if parser_to_use:
-                cli_args.extend(["--tool-call-parser", parser_to_use])
-                print(f"Auto tool choice enabled with parser: {parser_to_use}")
-            else:
-                print("Auto tool choice enabled but no compatible parser found for model")
-        elif tool_call_parser:
-            # If auto tool choice is disabled but parser is explicitly set, still use it
-            cli_args.extend(["--tool-call-parser", tool_call_parser])
-            print(f"Tool call parser set: {tool_call_parser}")
+        # Add auto tool choice from override config (default True when no override)
+        use_tool_choice = override_config is None or override_config.get("enable_tool_choice", True)
+        if use_tool_choice:
+            if enable_auto_tool_choice:
+                cli_args.append("--enable-auto-tool-choice")
+                
+                # Determine tool call parser
+                parser_to_use = tool_call_parser
+                if not parser_to_use:
+                    parser_to_use = infer_tool_call_parser(model_id)
+                
+                if parser_to_use:
+                    cli_args.extend(["--tool-call-parser", parser_to_use])
+                    print(f"Auto tool choice enabled with parser: {parser_to_use}")
+                else:
+                    print("Auto tool choice enabled but no compatible parser found for model")
+            elif tool_call_parser:
+                # If auto tool choice is disabled but parser is explicitly set, still use it
+                cli_args.extend(["--tool-call-parser", tool_call_parser])
+                print(f"Tool call parser set: {tool_call_parser}")
         
         # Parse arguments using vLLM's official parser
         args = parser.parse_args(cli_args)
