@@ -69,6 +69,9 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           platforms: ${{ inputs.platform }}
+          # Use registry cache instead of GHA cache (GHA cache is limited to 10GB, this image is 20GB+)
+          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:buildcache-base
+          cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:buildcache-base,mode=max
 
       - name: Generate build summary
         run: |
