@@ -1,3 +1,4 @@
+import json
 import os
 import asyncio
 import threading
@@ -8,6 +9,7 @@ from vllm.entrypoints.openai.cli_args import make_arg_parser, validate_parsed_se
 from vllm.engine.arg_utils import FlexibleArgumentParser
 from vllm.lora.resolver import LoRAResolverRegistry
 from hf_lora_resolver import HuggingFaceLoRAResolver
+from model_config import get_override_model_config
 from utils import ServerState, create_health_app, get_env_var, infer_tool_call_parser
 
 
@@ -106,9 +108,16 @@ def main():
         print(f"Using pre-downloaded model from cache: {model_cache_path}")
     else:
         print(f"Model will be downloaded at runtime to: {cache_dir}")
+    override_config = get_override_model_config(model_id)
     print(f"Starting health server on {host}:{health_port}")
     print(f"Starting vLLM server on {host}:{port} with model: {model_id}")
-    print(f"LoRA configuration: max_loras={max_loras}, max_lora_rank={max_lora_rank}, max_cpu_loras={max_cpu_loras}")
+    if override_config:
+        runner = override_config.get("runner")
+        print(f"Override config: runner={runner}, enable_lora={override_config.get('enable_lora', True)}, enable_tool_choice={override_config.get('enable_tool_choice', True)}")
+    else:
+        print(f"LoRA configuration: max_loras={max_loras}, max_lora_rank={max_lora_rank}, max_cpu_loras={max_cpu_loras}")
+
+    # Print multimodal configuration if any limits are set
     if max_images_per_prompt > 0 or max_videos_per_prompt > 0 or max_audios_per_prompt > 0:
         print("Multimodal configuration:")
         print(f"  Image: fetch_timeout={image_fetch_timeout}s, max_per_prompt={max_images_per_prompt}")
@@ -123,20 +132,45 @@ def main():
         cli_env_setup()
         parser = FlexibleArgumentParser(description="vLLM OpenAI-Compatible RESTful API server.")
         parser = make_arg_parser(parser)
+
+        # Build CLI args from override model config (config-driven; no task-specific branches)
+        override_config = get_override_model_config(model_id)
         cli_args = [
             "--model", model_id,
             "--host", host,
             "--port", str(port),
-            "--enable-lora",
-            "--max-loras", str(max_loras),
-            "--max-lora-rank", str(max_lora_rank),
-            "--max-cpu-loras", str(max_cpu_loras),
             "--trust-remote-code",
             "--gpu-memory-utilization", "0.8",
             "--download-dir", cache_dir,
         ]
+        if override_config and override_config.get("runner"):
+            cli_args.extend(["--runner", override_config["runner"]])
+        if override_config and override_config.get("hf_overrides"):
+            cli_args.extend(["--hf-overrides", json.dumps(override_config["hf_overrides"])])
+        use_lora = override_config is None or override_config.get("enable_lora", True)
+        if use_lora:
+            cli_args.extend([
+                "--enable-lora",
+                "--max-loras", str(max_loras),
+                "--max-lora-rank", str(max_lora_rank),
+                "--max-cpu-loras", str(max_cpu_loras),
+            ])
+        if override_config:
+            print(f"Override config applied: runner={override_config.get('runner')}, enable_lora={use_lora}")
+
         if api_key:
             cli_args.extend(["--api-key", api_key])
+
+        # Log rerank model input (training-level prompt) to server stdout when requested
+        # vLLM's RequestLogger.log_inputs() logs the full_prompt at DEBUG; enable that path
+        log_rerank_prompt = get_env_var("RERANK_LOG_PROMPT", "0", int) or get_env_var("VLLM_LOG_PROMPT", "0", int)
+        if log_rerank_prompt:
+            os.environ["VLLM_LOGGING_LEVEL"] = os.environ.get("VLLM_LOGGING_LEVEL", "DEBUG")
+            cli_args.append("--enable-log-requests")
+            cli_args.extend(["--max-log-len", "100000"])
+            print("Rerank prompt logging enabled: full model input will appear in server log at DEBUG for each /v1/rerank request")
+
+        # Add multimodal limits if configured
         mm_limits = {}
         if max_images_per_prompt > 0:
             mm_limits["image"] = max_images_per_prompt
@@ -145,19 +179,23 @@ def main():
         if max_audios_per_prompt > 0:
             mm_limits["audio"] = max_audios_per_prompt
         if mm_limits:
-            import json
             cli_args.extend(["--limit-mm-per-prompt", json.dumps(mm_limits)])
-        if enable_auto_tool_choice:
-            cli_args.append("--enable-auto-tool-choice")
+        # Add auto tool choice from override config (default True when no override)
+        # vLLM requires --tool-call-parser when --enable-auto-tool-choice is set; only enable when we have a parser
+        use_tool_choice = override_config is None or override_config.get("enable_tool_choice", True)
+        if use_tool_choice:
             parser_to_use = tool_call_parser or infer_tool_call_parser(model_id)
-            if parser_to_use:
+            if enable_auto_tool_choice and parser_to_use:
+                cli_args.append("--enable-auto-tool-choice")
                 cli_args.extend(["--tool-call-parser", parser_to_use])
                 print(f"Auto tool choice enabled with parser: {parser_to_use}")
-            else:
-                print("Auto tool choice enabled but no compatible parser found for model")
-        elif tool_call_parser:
-            cli_args.extend(["--tool-call-parser", tool_call_parser])
-            print(f"Tool call parser set: {tool_call_parser}")
+            elif tool_call_parser:
+                cli_args.extend(["--tool-call-parser", tool_call_parser])
+                print(f"Tool call parser set: {tool_call_parser}")
+            elif enable_auto_tool_choice and not parser_to_use:
+                print("Auto tool choice skipped: no compatible parser for model (e.g. reranker)")
+
+        # Parse arguments using vLLM's official parser
         args = parser.parse_args(cli_args)
         validate_parsed_serve_args(args)
         uvloop.run(run_vllm_server_async(args))
