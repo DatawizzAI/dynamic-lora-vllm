@@ -32,6 +32,9 @@ on:
           - qwen3-4b
           - qwen3-8b
           - qwen3-14b
+          - qwen3-reranker-0.6b
+          - qwen3-reranker-4b
+          - qwen3-reranker-8b
         default: 'llama-3.1-8b'
       custom_model_id:
         description: 'Custom HuggingFace model ID (only for "custom model")'
@@ -83,7 +86,10 @@ jobs:
             {"model_id":"Qwen/Qwen3-0.6B","requires_token":false,"tag_suffix":"qwen3-0.6b"},
             {"model_id":"Qwen/Qwen3-4B","requires_token":false,"tag_suffix":"qwen3-4b"},
             {"model_id":"Qwen/Qwen3-8B","requires_token":false,"tag_suffix":"qwen3-8b"},
-            {"model_id":"Qwen/Qwen3-14B","requires_token":false,"tag_suffix":"qwen3-14b"}
+            {"model_id":"Qwen/Qwen3-14B","requires_token":false,"tag_suffix":"qwen3-14b"},
+            {"model_id":"Qwen/Qwen3-Reranker-0.6B","requires_token":false,"tag_suffix":"qwen3-reranker-0.6b"},
+            {"model_id":"Qwen/Qwen3-Reranker-4B","requires_token":false,"tag_suffix":"qwen3-reranker-4b"},
+            {"model_id":"Qwen/Qwen3-Reranker-8B","requires_token":false,"tag_suffix":"qwen3-reranker-8b"}
           ]'
           
           case "${{ inputs.build_target }}" in
