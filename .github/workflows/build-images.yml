@@ -166,6 +166,9 @@ jobs:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Set lowercase repo name
+        id: repo
+        run: echo "name=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
       - name: Extract metadata (base)
         id: meta
         uses: docker/metadata-action@v5
@@ -185,8 +188,8 @@ jobs:
           pull: true
           provenance: false
           # Use registry cache instead of GHA cache (GHA cache is limited to 10GB, this image is 20GB+)
-          cache-from: type=registry,ref=ghcr.io/${{ github.repository }}:buildcache-base
-          cache-to: type=registry,ref=ghcr.io/${{ github.repository }}:buildcache-base,mode=max
+          cache-from: type=registry,ref=ghcr.io/${{ steps.repo.outputs.name }}:buildcache-base
+          cache-to: type=registry,ref=ghcr.io/${{ steps.repo.outputs.name }}:buildcache-base,mode=max
 
   # Stage 2a: Approval gate for building model images
   # Uses environment protection rules to require manual approval before running
