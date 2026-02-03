@@ -96,7 +96,12 @@ jobs:
           if [ -n "${{ inputs.custom_model }}" ]; then
             TAG="${{ inputs.custom_tag }}"
             [ -z "$TAG" ] && TAG="custom"
-            echo 'model={"model_id":"${{ inputs.custom_model }}","requires_token":${{ inputs.hf_token_required }},"tag_suffix":"'$TAG'"}' >> $GITHUB_OUTPUT
+            MODEL=$(jq -c -n \
+              --arg model_id "${{ inputs.custom_model }}" \
+              --argjson requires_token "${{ inputs.hf_token_required }}" \
+              --arg tag_suffix "$TAG" \
+              '{model_id: $model_id, requires_token: $requires_token, tag_suffix: $tag_suffix}')
+            echo "model=${MODEL}" >> $GITHUB_OUTPUT
           else
             echo "model=" >> $GITHUB_OUTPUT
           fi

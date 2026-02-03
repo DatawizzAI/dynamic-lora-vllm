@@ -43,6 +43,24 @@ def test_get_env_var_bool_false():
         os.environ.pop("TEST_BOOL", None)
 
 
+def test_get_env_var_empty_string_returns_default():
+    os.environ["EMPTY_VAR"] = ""
+    try:
+        assert get_env_var("EMPTY_VAR", "42", int) == 42
+        assert get_env_var("EMPTY_VAR", None) is None
+    finally:
+        os.environ.pop("EMPTY_VAR", None)
+
+
+def test_get_env_var_invalid_int_returns_default():
+    os.environ["BAD_INT"] = "not-a-number"
+    try:
+        # Returns default as-is when conversion fails (caller can use str() for CLI)
+        assert get_env_var("BAD_INT", "8000", int) == "8000"
+    finally:
+        os.environ.pop("BAD_INT", None)
+
+
 # --- health check ---
 def test_ping_initializing_returns_204():
     app = create_health_app(get_state=lambda: ServerState.INITIALIZING)

@@ -109,6 +109,10 @@ jobs:
                 --arg base_image "$BASE_IMAGE" \
                 '[{model_id: $model_id, requires_token: $requires_token, tag_suffix: $tag_suffix, base_image: $base_image, platform: "linux/amd64"}]')
               ;;
+            *)
+              echo "::error::Unknown build_target: ${{ inputs.build_target }}"
+              exit 1
+              ;;
           esac
           
           echo "build_matrix=${BUILD_MATRIX}" >> $GITHUB_OUTPUT
