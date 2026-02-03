@@ -20,9 +20,8 @@ class HuggingFaceLoRAResolver(LoRAResolver):
 
     def _get_base_model_tokenizer_config_path(self, base_model_name: str) -> Path:
         """Get the path to the base model's tokenizer_config.json file."""
-        # Convert model name to cache directory format (e.g., "Qwen/Qwen3-4B" -> "models--Qwen--Qwen3-4B")
-        cache_model_name = f"models--{base_model_name.replace('/', '--')}"
-        model_cache_dir = self.cache_dir / cache_model_name
+        cache_dir_name = f"models--{base_model_name.replace('/', '--')}"
+        model_cache_dir = self.cache_dir / cache_dir_name
         
         # Find the snapshot directory (there should be only one)
         snapshots_dir = model_cache_dir / "snapshots"
@@ -39,9 +38,8 @@ class HuggingFaceLoRAResolver(LoRAResolver):
 
     def _get_base_model_chat_template_jinja_path(self, base_model_name: str) -> Path:
         """Get the path to the base model's chat_template.jinja file."""
-        # Convert model name to cache directory format (e.g., "Qwen/Qwen3-4B" -> "models--Qwen--Qwen3-4B")
-        cache_model_name = f"models--{base_model_name.replace('/', '--')}"
-        model_cache_dir = self.cache_dir / cache_model_name
+        cache_dir_name = f"models--{base_model_name.replace('/', '--')}"
+        model_cache_dir = self.cache_dir / cache_dir_name
         
         # Find the snapshot directory (there should be only one)
         snapshots_dir = model_cache_dir / "snapshots"
