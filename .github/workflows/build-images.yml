@@ -3,8 +3,6 @@ name: Build Docker Images
 on:
   push:
     branches: [main]
-  pull_request:
-    branches: [main]
   workflow_dispatch:
     inputs:
       build_target:
@@ -113,8 +111,8 @@ jobs:
           BASE_IMAGE="${{ steps.matrix.outputs.base_image }}"
           PLATFORM="${{ steps.matrix.outputs.platform }}"
           
-          # For push/PR events, use all registered models
-          if [ "${{ github.event_name }}" = "push" ] || [ "${{ github.event_name }}" = "pull_request" ]; then
+          # For push to main, use all registered models
+          if [ "${{ github.event_name }}" = "push" ]; then
             BUILD_MATRIX=$(echo "$MODEL_MATRIX" | jq -c --arg base_image "$BASE_IMAGE" 'map(.base_image = $base_image)')
             echo "build_matrix=${BUILD_MATRIX}" >> $GITHUB_OUTPUT
           # For workflow_dispatch, check build_target
@@ -130,9 +128,9 @@ jobs:
             echo "build_matrix=[]" >> $GITHUB_OUTPUT
           fi
 
-  # Stage 1: Build base image. Auto: push/PR. Manual: when dropdown = base.
+  # Stage 1: Build base image. Auto: push to main. Manual: when dropdown = base.
   build-base-inline:
-    if: github.event_name == 'push' || github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && inputs.build_target == 'base')
+    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.build_target == 'base')
     needs: setup
     runs-on: GPU_Runner
     timeout-minutes: 120
@@ -183,11 +181,11 @@ jobs:
 
   # Stage 2a: Approval gate for building model images
   # Uses environment protection rules to require manual approval before running
-  # On PR/push: waits for approval (won't auto-run)
+  # On push: waits for approval (won't auto-run)
   # On workflow_dispatch with build models: skips approval (user already chose to build)
   approve-build-models:
     if: |
-      (github.event_name == 'push' || github.event_name == 'pull_request') &&
+      github.event_name == 'push' &&
       needs.setup.outputs.build_matrix != '[]'
     needs: [setup, build-base-inline]
     runs-on: ubuntu-latest
@@ -197,13 +195,13 @@ jobs:
         run: echo "Build models approved"
 
   # Stage 2b: Build model images (all registered or custom).
-  # On PR/push: runs after approval (depends on build-base-inline and approve-build-models)
+  # On push: runs after approval (depends on build-base-inline and approve-build-models)
   # On workflow_dispatch: runs directly if build_target is set to build models (only depends on setup)
   build-model:
     if: |
       always() && !cancelled() &&
       ((github.event_name == 'workflow_dispatch' && (inputs.build_target == 'build all registered models' || (inputs.build_target == 'build custom model' && inputs.custom_model != ''))) ||
-      ((github.event_name == 'push' || github.event_name == 'pull_request') && needs.approve-build-models.result == 'success' && needs.build-base-inline.result == 'success'))
+      (github.event_name == 'push' && needs.approve-build-models.result == 'success' && needs.build-base-inline.result == 'success'))
     needs: [setup, build-base-inline, approve-build-models]
     strategy:
       matrix:
