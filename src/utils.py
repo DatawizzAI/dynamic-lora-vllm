@@ -10,10 +10,17 @@ from fastapi.responses import Response
 
 # --- env ---
 def get_env_var(name: str, default_value: str = None, var_type: type = str):
-    """Get env var with type conversion. bool: 'true'/'1'/'yes'/'on' -> True."""
+    """Get env var with type conversion. bool: 'true'/'1'/'yes'/'on' -> True. Empty string uses default."""
     value = os.getenv(name, default_value)
     if value is None or value == "":
-        return default_value
+        if default_value is None:
+            return None
+        if var_type == bool:
+            return default_value.lower() in ("true", "1", "yes", "on")
+        try:
+            return var_type(default_value)
+        except (ValueError, TypeError):
+            return default_value
     if var_type == bool:
         return value.lower() in ("true", "1", "yes", "on")
     try:
