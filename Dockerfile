@@ -1,6 +1,6 @@
 # NGC PyTorch 25.10 = torch 2.9.0, matching pip-freeze-runpod-worker.txt
 # See: https://docs.nvidia.com/deeplearning/frameworks/pytorch-release-notes/rel-25-11.html
-FROM nvcr.io/nvidia/pytorch:25.10-py3
+FROM nvcr.io/nvidia/pytorch:24.08-py3
 
 # Build arguments for optional model pre-download and HF authentication
 ARG HF_TOKEN=""

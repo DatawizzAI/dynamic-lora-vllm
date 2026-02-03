@@ -3,6 +3,8 @@ name: Build Docker Images
 on:
   push:
     branches: [main]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
     inputs:
       build_target:
@@ -28,6 +30,11 @@ on:
         required: false
         type: boolean
         default: false
+      base_image_tag:
+        description: 'Base image tag to use (e.g., base-amd64-pr-7). Leave empty for latest.'
+        required: false
+        type: string
+        default: ''
 
 permissions:
   contents: read
@@ -115,30 +122,38 @@ jobs:
           MODEL_MATRIX: ${{ steps.matrix.outputs.model_matrix }}
           CUSTOM_MODEL: ${{ steps.custom.outputs.model }}
         run: |
-          # Use base-amd64-latest (always points to the latest base image)
-          BASE_IMAGE="${{ steps.matrix.outputs.base_image }}"
+          # Use custom base image tag if provided, otherwise use latest
+          IMAGE_NAME_LOWER=$(echo "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}" | tr '[:upper:]' '[:lower:]')
+          CUSTOM_BASE_TAG="${{ inputs.base_image_tag }}"
+          if [ -n "$CUSTOM_BASE_TAG" ]; then
+            BASE_IMAGE="${IMAGE_NAME_LOWER}:${CUSTOM_BASE_TAG}"
+            echo "Using custom base image: $BASE_IMAGE"
+          else
+            BASE_IMAGE="${{ steps.matrix.outputs.base_image }}"
+            echo "Using default base image: $BASE_IMAGE"
+          fi
           PLATFORM="${{ steps.matrix.outputs.platform }}"
-          
+
           # For push to main, use all registered models
           if [ "${{ github.event_name }}" = "push" ]; then
             BUILD_MATRIX=$(echo "$MODEL_MATRIX" | jq -c --arg base_image "$BASE_IMAGE" 'map(.base_image = $base_image)')
             echo "build_matrix=${BUILD_MATRIX}" >> $GITHUB_OUTPUT
           # For workflow_dispatch, check build_target
           elif [ "${{ inputs.build_target }}" = "build all registered models" ]; then
-            # Use all registered models with latest base image
+            # Use all registered models with specified base image
             BUILD_MATRIX=$(echo "$MODEL_MATRIX" | jq -c --arg base_image "$BASE_IMAGE" 'map(.base_image = $base_image)')
             echo "build_matrix=${BUILD_MATRIX}" >> $GITHUB_OUTPUT
           elif [ "${{ inputs.build_target }}" = "build custom model" ] && [ -n "$CUSTOM_MODEL" ]; then
-            # Use custom model only with latest base image
+            # Use custom model with specified base image
             BUILD_MATRIX=$(echo "$CUSTOM_MODEL" | jq -c --arg base_image "$BASE_IMAGE" --arg platform "$PLATFORM" '[. + {base_image: $base_image, platform: $platform}]')
             echo "build_matrix=${BUILD_MATRIX}" >> $GITHUB_OUTPUT
           else
             echo "build_matrix=[]" >> $GITHUB_OUTPUT
           fi
 
-  # Stage 1: Build base image. Auto: push to main. Manual: when dropdown = base.
+  # Stage 1: Build base image. Auto: push to main or PR. Manual: when dropdown = base.
   build-base-inline:
-    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.build_target == 'base')
+    if: github.event_name == 'push' || github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && inputs.build_target == 'base')
     needs: setup
     runs-on: GPU_Runner
     timeout-minutes: 120
@@ -160,7 +175,6 @@ jobs:
           sudo rm -rf /opt/hostedtoolcache/CodeQL || true
           docker system prune -af --volumes || true
       - name: Log in to Container Registry
-        if: github.event_name != 'pull_request'
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
@@ -176,13 +190,14 @@ jobs:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
             type=raw,value=${{ env.BASE_TAG_SUFFIX }}-latest,enable=${{ github.event_name != 'pull_request' }}
-            type=raw,value=${{ env.BASE_TAG_SUFFIX }}-${{ needs.setup.outputs.date_tag }}
-      - name: Build (and push on push to main) base image
+            type=raw,value=${{ env.BASE_TAG_SUFFIX }}-${{ needs.setup.outputs.date_tag }},enable=${{ github.event_name != 'pull_request' }}
+            type=raw,value=${{ env.BASE_TAG_SUFFIX }}-pr-${{ github.event.pull_request.number }},enable=${{ github.event_name == 'pull_request' }}
+      - name: Build and push base image
         uses: docker/build-push-action@v5
         with:
           context: .
           file: Dockerfile
-          push: ${{ github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.build_target == 'base') }}
+          push: true
           tags: ${{ steps.meta.outputs.tags }}
           platforms: ${{ env.PLATFORM }}
           pull: true

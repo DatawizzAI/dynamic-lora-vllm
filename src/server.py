@@ -134,6 +134,9 @@ def main():
 
         # Build CLI args from override model config (config-driven; no task-specific branches)
         override_config = get_override_model_config(model_id)
+        # Check if we should use eager mode (disables torch.compile for driver compatibility)
+        use_eager = get_env_var("ENFORCE_EAGER", "false", bool)
+
         cli_args = [
             "--model", model_id,
             "--host", host,
@@ -142,6 +145,11 @@ def main():
             "--gpu-memory-utilization", "0.8",
             "--download-dir", cache_dir,
         ]
+
+        # Enable eager mode if requested or if using pooling runner (driver compatibility)
+        if use_eager or (override_config and override_config.get("runner") == "pooling"):
+            cli_args.append("--enforce-eager")
+            print("Eager mode enabled (torch.compile disabled for driver compatibility)")
         if override_config and override_config.get("runner"):
             cli_args.extend(["--runner", override_config["runner"]])
         if override_config and override_config.get("hf_overrides"):
