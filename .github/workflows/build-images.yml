@@ -176,6 +176,8 @@ jobs:
             type=raw,value=${{ env.BASE_TAG_SUFFIX }}-${{ needs.setup.outputs.date_tag }}
       - name: Build (and push on push to main) base image
         uses: docker/build-push-action@v5
+        env:
+          IMAGE_NAME_LOWER: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
         with:
           context: .
           file: Dockerfile
@@ -184,8 +186,9 @@ jobs:
           platforms: ${{ env.PLATFORM }}
           pull: true
           provenance: false
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          # Use registry cache instead of GHA cache (GHA cache is limited to 10GB, this image is 20GB+)
+          cache-from: type=registry,ref=ghcr.io/${{ github.repository }}:buildcache-base
+          cache-to: type=registry,ref=ghcr.io/${{ github.repository }}:buildcache-base,mode=max
 
   # Stage 2a: Approval gate for building model images
   # Uses environment protection rules to require manual approval before running
