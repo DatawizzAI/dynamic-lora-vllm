@@ -1,6 +1,10 @@
 """
-Reranker (pooling) model configurations: /v1/rerank endpoint, no LoRA, no tool choice.
+Reranker (pooling) model configurations: /v1/rerank endpoint, LoRA supported, no tool choice.
 To add a reranker: append to RERANKER_MODELS with the appropriate hf_overrides.
+
+Note: LoRA support for pooling models requires vLLM >= 0.6.0 (PR #14935).
+The TransformersForSequenceClassification backend inherits SupportsLoRA from its Base class,
+and linear layers are replaced with LinearBase subclasses that support LoRA.
 """
 from typing import Any
 
@@ -11,10 +15,10 @@ QWEN3_RERANKER_HF_OVERRIDES = {
     "is_original_qwen3_reranker": True,
 }
 
-# Profile: pooling/reranker — no LoRA, no tool choice, expose /v1/rerank.
+# Profile: pooling/reranker — LoRA supported, no tool choice, expose /v1/rerank.
 PROFILE_RERANKER: dict[str, Any] = {
     "runner": "pooling",
-    "enable_lora": False,
+    "enable_lora": True,
     "enable_tool_choice": False,
 }
 

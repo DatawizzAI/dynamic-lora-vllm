@@ -5,7 +5,7 @@ A vLLM-based LLM serving service that supports dynamically loading LoRA adapters
 ## Features
 
 - **Dynamic LoRA Loading**: Automatically downloads and loads LoRA adapters from Hugging Face Hub on demand
-- **Reranker Support**: Serve reranker models (e.g. Qwen3-Reranker-4B) with `/v1/rerank` endpoint
+- **Reranker Support**: Serve reranker models (e.g. Qwen3-Reranker-4B) with `/v1/rerank` endpoint, including LoRA support
 - **OpenAI Compatible API**: Uses vLLM's built-in OpenAI compatible API server
 - **Automatic Tool Choice**: Built-in function calling support with automatic parser detection
 - **Containerized Deployment**: Docker-based deployment for easy scaling and management
@@ -60,7 +60,7 @@ docker run -d \
 |----------|---------|-------------|
 | `PORT` | `8000` | Port the server listens on |
 | `HOST` | `0.0.0.0` | Host the server listens on |
-| `MODEL_ID` | `meta-llama/Llama-3.2-1B-Instruct` | Base model to load. Use `Qwen/Qwen3-Reranker-4B` for reranker mode (exposes `/v1/rerank`, no LoRA). |
+| `MODEL_ID` | `meta-llama/Llama-3.2-1B-Instruct` | Base model to load. Use `Qwen/Qwen3-Reranker-4B` for reranker mode (exposes `/v1/rerank`, LoRA supported). |
 | `API_KEY` | - | API key for server authentication (optional - leave empty for no auth) |
 | `HF_TOKEN` | - | Hugging Face token for private model access (optional) |
 | `CACHE_DIR` | `/tmp/.cache/huggingface` | Directory to cache models and adapters |
@@ -123,7 +123,7 @@ The service will automatically:
 
 ### Reranker Models (Pooling Mode)
 
-When `MODEL_ID` is set to a reranker model (e.g. `Qwen/Qwen3-Reranker-4B`), the server runs in **pooling mode** and exposes a `/v1/rerank` endpoint (Cohere-compatible). LoRA and function calling are disabled for reranker models.
+When `MODEL_ID` is set to a reranker model (e.g. `Qwen/Qwen3-Reranker-4B`), the server runs in **pooling mode** and exposes a `/v1/rerank` endpoint (Cohere-compatible). **LoRA is supported** for reranker models (requires vLLM >= 0.6.0). Function calling is disabled for reranker models.
 
 **Supported rerankers**: See `src/model_config/reranker_config.py` for the list (includes Qwen3-Reranker-4B, 0.6B, 8B).
 
@@ -133,14 +133,27 @@ When `MODEL_ID` is set to a reranker model (e.g. `Qwen/Qwen3-Reranker-4B`), the 
 # 1. Set MODEL_ID to reranker
 export MODEL_ID=Qwen/Qwen3-Reranker-4B
 
-# 2. Start server (LoRA disabled, /v1/rerank available)
+# 2. Start server (/v1/rerank available, LoRA enabled)
 ./run.sh
 
-# 3. Call rerank API
+# 3. Call rerank API (base model)
 curl -X POST http://localhost:8000/v1/rerank \
   -H "Content-Type: application/json" \
   -d '{
     "model": "Qwen/Qwen3-Reranker-4B",
+    "query": "What is the capital of France?",
+    "documents": [
+      "Paris is the capital of France.",
+      "Berlin is the capital of Germany.",
+      "Madrid is the capital of Spain."
+    ]
+  }'
+
+# 4. Call rerank API with LoRA adapter
+curl -X POST http://localhost:8000/v1/rerank \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "username/my-reranker-lora-adapter",
     "query": "What is the capital of France?",
     "documents": [
       "Paris is the capital of France.",
