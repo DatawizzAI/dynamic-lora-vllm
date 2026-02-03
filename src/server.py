@@ -298,6 +298,15 @@ def main():
         
         if api_key:
             cli_args.extend(["--api-key", api_key])
+
+        # Log rerank model input (training-level prompt) to server stdout when requested
+        # vLLM's RequestLogger.log_inputs() logs the full_prompt at DEBUG; enable that path
+        log_rerank_prompt = get_env_var("RERANK_LOG_PROMPT", "0", int) or get_env_var("VLLM_LOG_PROMPT", "0", int)
+        if log_rerank_prompt:
+            os.environ["VLLM_LOGGING_LEVEL"] = os.environ.get("VLLM_LOGGING_LEVEL", "DEBUG")
+            cli_args.append("--enable-log-requests")
+            cli_args.extend(["--max-log-len", "100000"])
+            print("Rerank prompt logging enabled: full model input will appear in server log at DEBUG for each /v1/rerank request")
         
         # Add multimodal limits if configured
         mm_limits = {}
@@ -312,25 +321,19 @@ def main():
             cli_args.extend(["--limit-mm-per-prompt", json.dumps(mm_limits)])
         
         # Add auto tool choice from override config (default True when no override)
+        # vLLM requires --tool-call-parser when --enable-auto-tool-choice is set; only enable when we have a parser
         use_tool_choice = override_config is None or override_config.get("enable_tool_choice", True)
         if use_tool_choice:
-            if enable_auto_tool_choice:
+            parser_to_use = tool_call_parser or infer_tool_call_parser(model_id)
+            if enable_auto_tool_choice and parser_to_use:
                 cli_args.append("--enable-auto-tool-choice")
-                
-                # Determine tool call parser
-                parser_to_use = tool_call_parser
-                if not parser_to_use:
-                    parser_to_use = infer_tool_call_parser(model_id)
-                
-                if parser_to_use:
-                    cli_args.extend(["--tool-call-parser", parser_to_use])
-                    print(f"Auto tool choice enabled with parser: {parser_to_use}")
-                else:
-                    print("Auto tool choice enabled but no compatible parser found for model")
+                cli_args.extend(["--tool-call-parser", parser_to_use])
+                print(f"Auto tool choice enabled with parser: {parser_to_use}")
             elif tool_call_parser:
-                # If auto tool choice is disabled but parser is explicitly set, still use it
                 cli_args.extend(["--tool-call-parser", tool_call_parser])
                 print(f"Tool call parser set: {tool_call_parser}")
+            elif enable_auto_tool_choice and not parser_to_use:
+                print("Auto tool choice skipped: no compatible parser for model (e.g. reranker)")
         
         # Parse arguments using vLLM's official parser
         args = parser.parse_args(cli_args)
