@@ -37,6 +37,7 @@ def register_custom_lora_resolver():
 
 
 async def monitor_vllm_health(host: str, port: int):
+    global server_state  # Must be at the top of the function
     import aiohttp
     url = f"http://{host}:{port}/health"
     max_attempts = 60
@@ -45,14 +46,12 @@ async def monitor_vllm_health(host: str, port: int):
             async with aiohttp.ClientSession() as session:
                 async with session.get(url, timeout=aiohttp.ClientTimeout(total=2)) as resp:
                     if resp.status == 200:
-                        global server_state
                         server_state = ServerState.READY
                         print("vLLM server is ready!")
                         return
         except Exception:
             pass
         await asyncio.sleep(5)
-    global server_state
     server_state = ServerState.ERROR
     print("vLLM server failed to become ready within timeout")
 
